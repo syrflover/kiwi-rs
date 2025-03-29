@@ -5,6 +5,9 @@ use widestring::{U16CStr, U16String};
 use crate::{bindings::*, kiwi_error, POSTag, Token};
 
 /// [Kiwi::analyze] 또는 [Kiwi::analyze_w]의 반환 값
+///
+/// [Kiwi::analyze]: crate::Kiwi::analyze
+/// [Kiwi::analyze_w]: crate::Kiwi::analyze_w
 pub struct Analyzed {
     pub(crate) handle: kiwi_res_h,
 }

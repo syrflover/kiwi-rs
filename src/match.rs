@@ -1,6 +1,11 @@
 use crate::bindings::*;
 
 /// 분석 시 특수한 문자열 패턴 중 어떤 것들을 추출할 지 선택할 수 있습니다.
+///
+/// 옵션에 대한 설명은 각 메서드의 설명 참고
+///
+/// # Default
+/// 모든 옵션이 비활성됨
 #[derive(Debug, Clone, Copy)]
 pub struct Match {
     url: bool,
@@ -97,6 +102,15 @@ impl Match {
     }
 
     /// url, email, hashtag, mention, serial, emoji 모두 추출합니다.
+    ///
+    /// 아래의 옵션들이 모두 활성화 됩니다.
+    ///
+    /// * [Match::url]
+    /// * [Match::email]
+    /// * [Match::hashtag]
+    /// * [Match::mention]
+    /// * [Match::serial]
+    /// * [Match::emoji]
     pub fn all(self) -> Self {
         Self {
             url: true,
@@ -174,7 +188,10 @@ impl Match {
         self
     }
 
-    /// [Match::all] + [Match::normalize_coda]
+    /// 아래의 옵션들이 모두 활성화 됩니다.
+    ///
+    /// * [Match::all]
+    /// * [Match::normalize_coda]
     pub fn all_with_normailize_coda(self) -> Self {
         Self {
             normalize_coda: true,
@@ -183,6 +200,11 @@ impl Match {
     }
 
     /// 동사/형용사형 파생접미사를 분리하지 않고 결합합니다.
+    ///
+    /// 아래의 옵션들이 모두 활성화 됩니다.
+    ///
+    /// * [Match::join_verb_suffix]
+    /// * [Match::join_adj_suffix]
     pub fn join_v_suffix(self) -> Self {
         Self {
             join_verb_suffix: true,
@@ -192,6 +214,13 @@ impl Match {
     }
 
     /// 모든 접두사/접미사를 분리하지 않고 결합합니다.
+    ///
+    /// 아래의 옵션들이 모두 활성화 됩니다.
+    ///
+    /// * [Match::join_noun_prefix]
+    /// * [Match::join_noun_suffix]
+    /// * [Match::join_adv_suffix]
+    /// * [Match::join_v_suffix]
     pub fn join_affix(self) -> Self {
         Self {
             join_noun_prefix: true,
