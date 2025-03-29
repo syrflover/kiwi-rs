@@ -294,6 +294,14 @@ impl Analyzed {
 
         tokens
     }
+
+    pub fn iter(&self) -> Iter {
+        Iter::new(self)
+    }
+
+    pub fn iter_w(&self) -> IterW {
+        IterW::new(self)
+    }
 }
 
 impl Drop for Analyzed {
@@ -305,3 +313,68 @@ impl Drop for Analyzed {
         }
     }
 }
+
+macro_rules! impl_iterator {
+    ($(
+        ($struct_name:ident, $form_fn:ident, $form_ty:ty) $(,)?
+    )*) => {
+        $(
+            pub struct $struct_name<'a> {
+                analyzed: &'a Analyzed,
+
+                i: usize,
+                size: usize,
+
+                j: usize,
+                word_num: usize,
+            }
+
+            impl<'a> $struct_name<'a> {
+                pub(crate) fn new(analyzed: &'a Analyzed) -> Self {
+                    let size = analyzed.size();
+                    let word_num = analyzed.word_num(0);
+
+                    Self {
+                        analyzed,
+
+                        i: 0,
+                        size,
+
+                        j: 0,
+                        word_num,
+                    }
+                }
+            }
+
+            impl Iterator for $struct_name<'_> {
+                type Item = ($form_ty, Token);
+
+                fn next(&mut self) -> Option<Self::Item> {
+                    if self.i >= self.size {
+                        return None;
+                    }
+
+                    if self.j >= self.word_num {
+                        self.i += 1;
+
+                        if self.i >= self.size {
+                            return None;
+                        }
+
+                        self.j = 0;
+                        self.word_num = self.analyzed.word_num(self.i);
+                    }
+
+                    let form = self.analyzed.$form_fn(self.i, self.j);
+                    let token = self.analyzed.token_info(self.i, self.j);
+
+                    self.j += 1;
+
+                    Some((form, token))
+                }
+            }
+        )*
+    };
+}
+
+impl_iterator![(Iter, form, String), (IterW, form_w, U16String)];

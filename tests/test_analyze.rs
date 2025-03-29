@@ -17,7 +17,7 @@ fn test_analyze() {
 
     let text = "안녕하세요 저는 바보입니다. 제 핏줄 보이시나요? 만둣국 먹고 싶다.";
 
-    let result = kiwi.analyze(
+    let analyzed = kiwi.analyze(
         //
         // U16String::from_str(text),
         text,
@@ -27,5 +27,10 @@ fn test_analyze() {
         None,
     );
 
-    println!("{:?}", result.to_vec());
+    println!("{:?}", analyzed.to_vec());
+
+    for (form, token) in analyzed.iter() {
+        print!("{} {} / ", form, token.tag);
+    }
+    println!();
 }
