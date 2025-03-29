@@ -230,7 +230,7 @@ impl Match {
         }
     }
 
-    pub fn finish(&self) -> i32 {
+    pub(crate) fn finish(&self) -> i32 {
         let Match {
             url,
             email,
