@@ -43,6 +43,9 @@ pub fn kiwi_error() -> Option<String> {
         }
 
         let err = CStr::from_ptr(err).to_owned().into_string().unwrap();
+
+        eprintln!("{}", err);
+
         bindings::kiwi_clear_error();
 
         Some(err)
