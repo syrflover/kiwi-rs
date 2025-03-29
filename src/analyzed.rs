@@ -265,7 +265,7 @@ impl Analyzed {
                 let form = self.form(i, j);
                 let token = self.token_info(i, j);
 
-                println!("{} {}", form, token.tag);
+                // println!("{} {}", form, token.tag);
 
                 tokens.push((form, token));
             }
@@ -286,7 +286,7 @@ impl Analyzed {
                 let form = self.form_w(i, j);
                 let token = self.token_info(i, j);
 
-                println!("{:?} {}", form, token.tag);
+                // println!("{:?} {}", form, token.tag);
 
                 tokens.push((form, token));
             }
