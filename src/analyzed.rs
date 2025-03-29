@@ -274,7 +274,7 @@ impl Analyzed {
         tokens
     }
 
-    /// 모든 분석 결과를 [형태소(UTF-16)](Analyzed::form)와 [토큰 정보](Analyzed::token_info)를 묶어 리스트로 반환합니다.
+    /// 모든 분석 결과를 [형태소(UTF-16)](Analyzed::form_w)와 [토큰 정보](Analyzed::token_info)를 묶어 리스트로 반환합니다.
     pub fn to_vec_w(&self) -> Vec<(U16String, Token)> {
         let res_size = self.size();
         let mut tokens = Vec::with_capacity(res_size);
