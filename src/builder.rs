@@ -1,6 +1,6 @@
 use std::{
     ffi::{c_char, c_void, CString},
-    path::Path,
+    path::{Path, PathBuf},
     str::FromStr,
 };
 
@@ -123,23 +123,50 @@ pub struct KiwiBuilder {
 }
 
 impl KiwiBuilder {
+    /// 기본 모델을 사용하여 [KiwiBuilder]를 생성합니다.
+    ///
+    /// 모델 경로를 지정하려면 [Kiwi::with_model_path] 메서드를 이용해 주세요.
+    ///
+    /// # Parameters
+    ///
+    /// * `num_threads` - 사용할 스레드의 개수.
+    ///                   `0` 또는 `None`으로 설정 시, 코어 개수만큼 스레드 생성함.
+    ///                   `analyze`, `extract_*` 메서드에서 사용됨
+    /// * `options` - [KiwiOptions] 참고
+    pub fn new(num_threads: impl Into<Option<u32>>, options: KiwiOptions) -> Self {
+        let model_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("Kiwi")
+            .join("models")
+            .join("base");
+
+        let model_path =
+            CString::new(model_path.as_os_str().to_os_string().into_string().unwrap()).unwrap();
+
+        let handle = unsafe {
+            kiwi_builder_init(
+                model_path.as_ptr(),
+                num_threads.into().unwrap_or(0) as i32,
+                options.finish() as i32,
+            )
+        };
+
+        Self { handle, typo: None }
+    }
+
     /// [KiwiBuilder]를 생성합니다.
     ///
     /// # Parameters
     ///
-    /// * `model_path` - 모델 폴더의 경로
+    /// * `model_path` - 모델 폴더의 경로.
     /// * `num_threads` - 사용할 스레드의 개수.
     ///                   `0` 또는 `None`으로 설정 시, 코어 개수만큼 스레드 생성함.
     ///                   `analyze`, `extract_*` 메서드에서 사용됨
-    /// * `builder_options` - [KiwiOptions] 참고
-    pub fn new<P>(
-        model_path: P,
+    /// * `options` - [KiwiOptions] 참고
+    pub fn with_model_path(
+        model_path: impl AsRef<Path>,
         num_threads: impl Into<Option<u32>>,
-        builder_options: KiwiOptions,
-    ) -> Self
-    where
-        P: AsRef<Path>,
-    {
+        options: KiwiOptions,
+    ) -> Self {
         let model_path = CString::new(
             model_path
                 .as_ref()
@@ -152,9 +179,9 @@ impl KiwiBuilder {
 
         let handle = unsafe {
             kiwi_builder_init(
-                model_path.as_ptr() as *const c_char,
+                model_path.as_ptr(),
                 num_threads.into().unwrap_or(0) as i32,
-                builder_options.finish() as i32,
+                options.finish() as i32,
             )
         };
 
@@ -257,7 +284,7 @@ impl KiwiBuilder {
     ///
     /// // without positions
     ///
-    /// let kiwi_builder = KiwiBuilder::new("./Kiwi/models/base", None, Default::default());
+    /// let kiwi_builder = KiwiBuilder::new(None, Default::default());
     ///
     /// let without_positions = vec![("사귀", POSTag::VV), ("었", POSTag::EP), ("다", POSTag::EF)];
     ///
@@ -265,7 +292,7 @@ impl KiwiBuilder {
     ///
     /// // with positions
     ///
-    /// let kiwi_builder = KiwiBuilder::new("./Kiwi/models/base", None, Default::default());
+    /// let kiwi_builder = KiwiBuilder::new(None, Default::default());
     ///
     /// let with_positions = vec![("사귀", POSTag::VV, 0, 2), ("었", POSTag::EP, 1, 2), ("다", POSTag::EF, 2, 3)];
     ///

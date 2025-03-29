@@ -71,7 +71,7 @@ mod tests {
             input.to_owned()
         };
 
-        let kiwi_builder = KiwiBuilder::new("./Kiwi/models/base", None, Default::default());
+        let kiwi_builder = KiwiBuilder::new(None, Default::default());
 
         kiwi_builder.add_rule(POSTag::VV, replacer, 0.0);
     }

@@ -6,7 +6,7 @@ fn test_analyze() {
 
     let builder_options = KiwiOptions::default();
 
-    let kiwi = KiwiBuilder::new("./Kiwi/models/base", 2, builder_options).build();
+    let kiwi = KiwiBuilder::new(2, builder_options).build();
 
     let match_options = Match::new()
         .compatible_jamo(true)
