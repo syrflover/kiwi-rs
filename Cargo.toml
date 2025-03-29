@@ -1,0 +1,11 @@
+[package]
+name = "kiwi"
+version = "0.20.4-1"
+edition = "2021"
+
+[dependencies]
+either = "1.15"
+widestring = "1.2"
+
+[build-dependencies]
+bindgen = "0.71"
