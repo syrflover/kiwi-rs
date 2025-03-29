@@ -51,7 +51,7 @@ impl AsRef<str> for POSTag {
 
 impl_pos_tag![
     /// 분석 불가
-    (0, UNKNOWN, "UNKNOWN"),
+    (0, UNK, "UNK"),
     /// 체언 - 일반 명사
     (1, NNG, "NNG"),
     /// 체언 - 고유 명사
