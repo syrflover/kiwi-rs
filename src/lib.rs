@@ -10,7 +10,6 @@ mod r#match;
 mod morpheme_set;
 mod pos_tag;
 mod pretokenized;
-mod token;
 mod trampoline;
 mod typo;
 
@@ -23,7 +22,6 @@ pub use morpheme_set::*;
 pub use pos_tag::*;
 pub use pretokenized::*;
 pub use r#match::*;
-pub use token::*;
 pub use typo::*;
 
 use std::ffi::CStr;
