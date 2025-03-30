@@ -1,5 +1,5 @@
 use std::{
-    ffi::{c_char, c_void, CString},
+    ffi::{c_void, CString},
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -292,7 +292,7 @@ impl KiwiBuilder {
     ///
     /// ```rust
     /// use either::Either;
-    /// use kiwi::{KiwiBuilder, POSTag};
+    /// use rkiwi::{KiwiBuilder, POSTag};
     ///
     /// let kiwi_builder = KiwiBuilder::new(None, Default::default()).unwrap();
     ///
@@ -305,7 +305,7 @@ impl KiwiBuilder {
     ///
     /// ```rust
     /// use either::Either;
-    /// use kiwi::{KiwiBuilder, POSTag};
+    /// use rkiwi::{KiwiBuilder, POSTag};
     ///
     /// let kiwi_builder = KiwiBuilder::new(None, Default::default()).unwrap();
     ///

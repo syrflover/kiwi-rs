@@ -1,4 +1,4 @@
-use kiwi::{kiwi_version, KiwiBuilder, KiwiOptions, Match};
+use rkiwi::{kiwi_version, KiwiBuilder, KiwiOptions, Match};
 
 #[test]
 fn test_analyze() -> anyhow::Result<()> {
