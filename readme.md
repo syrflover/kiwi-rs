@@ -4,12 +4,16 @@
 
 작동이 확인되지 않았으니 사용하지 마세요.
 
-- [x] Kiwi
-- [x] KiwiBuilder
-- [ ] Typo
-- [ ] MorphemeSet
-- [ ] Pretokenized
-- [ ] WordSegmentation
+- [x] Kiwi (kiwi)
+- [x] KiwiBuilder (kiwi_builder)
+- [x] Analyzed (kiwi_res)
+- [x] Extracted (kiwi_ws)
+- [x] MorphemeSet (kiwi_morphset)
+- [ ] Typo (kiwi_typo)
+- [ ] Pretokenized (kiwi_pt, kiwi_pretokenized)
+- [ ] kiwi_ss
+- [ ] kiwi_joiner
+- [ ] kiwi_swt
 
 ## Install with dynamic linking
 
