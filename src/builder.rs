@@ -11,7 +11,7 @@ use crate::{
     bindings::*,
     kiwi_error,
     trampoline::{reader_trampoline, reader_w_trampoline, replacer_trampoline},
-    Kiwi, POSTag, Typo, WordSegmentation,
+    Error, Kiwi, POSTag, Result, Typo, WordSegmentation,
 };
 
 /// [Kiwi] 인스턴스를 생성할 때 사용하는 옵션 구조체
@@ -133,7 +133,7 @@ impl KiwiBuilder {
     ///                   `0` 또는 `None`으로 설정 시, 코어 개수만큼 스레드 생성함.
     ///                   `analyze`, `extract_*` 메서드에서 사용됨
     /// * `options` - [KiwiOptions] 참고
-    pub fn new(num_threads: impl Into<Option<u32>>, options: KiwiOptions) -> Self {
+    pub fn new(num_threads: impl Into<Option<u32>>, options: KiwiOptions) -> Result<Self> {
         let model_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("Kiwi")
             .join("models")
@@ -150,7 +150,12 @@ impl KiwiBuilder {
             )
         };
 
-        Self { handle, typo: None }
+        if handle.is_null() {
+            let err = kiwi_error().unwrap_or_default();
+            return Err(Error::Native(err));
+        }
+
+        Ok(Self { handle, typo: None })
     }
 
     /// [KiwiBuilder]를 생성합니다.
@@ -166,7 +171,7 @@ impl KiwiBuilder {
         model_path: impl AsRef<Path>,
         num_threads: impl Into<Option<u32>>,
         options: KiwiOptions,
-    ) -> Self {
+    ) -> Result<Self> {
         let model_path = CString::new(
             model_path
                 .as_ref()
@@ -185,7 +190,12 @@ impl KiwiBuilder {
             )
         };
 
-        Self { handle, typo: None }
+        if handle.is_null() {
+            let err = kiwi_error().unwrap_or_default();
+            return Err(Error::Native(err));
+        }
+
+        Ok(Self { handle, typo: None })
     }
 
     /// 사용자 형태소를 추가합니다.
@@ -199,7 +209,7 @@ impl KiwiBuilder {
     /// * `word` - 추가할 형태소 (utf-8)
     /// * `pos` - 품사 태그 ([POSTag])
     /// * `score` - 점수
-    pub fn add_word(self, word: &str, pos_tag: POSTag, score: f32) -> Self {
+    pub fn add_word(self, word: &str, pos_tag: POSTag, score: f32) -> Result<Self> {
         let res = unsafe {
             let word = CString::from_str(word).unwrap();
             let pos_tag = CString::from_str(pos_tag.as_str()).unwrap();
@@ -209,10 +219,10 @@ impl KiwiBuilder {
 
         if res != 0 {
             let err = kiwi_error().unwrap_or_default();
-            panic!("{}", err);
+            return Err(Error::Native(err));
         }
 
-        self
+        Ok(self)
     }
 
     /// 원본 형태소를 기반으로 하는 새 형태소를 추가합니다.
@@ -228,16 +238,16 @@ impl KiwiBuilder {
     /// * `score` - 점수
     /// * `origin_word` - 원본 형태소 (utf-8)
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// origin_word에 pos_tag를 가진 원본 형태소가 존재하지 않는 경우 패닉이 발생합니다.
+    /// origin_word에 pos_tag를 가진 원본 형태소가 존재하지 않는 경우 에러를 반환합니다.
     pub fn add_alias_word(
         self,
         alias: &str,
         pos_tag: POSTag,
         score: f32,
         origin_word: &str,
-    ) -> Self {
+    ) -> Result<Self> {
         let res = unsafe {
             let alias = CString::from_str(alias).unwrap();
             let pos_tag = CString::from_str(pos_tag.as_str()).unwrap();
@@ -254,10 +264,10 @@ impl KiwiBuilder {
 
         if res != 0 {
             let err = kiwi_error().unwrap_or_default();
-            panic!("{}", err);
+            return Err(Error::Native(err));
         }
 
-        self
+        Ok(self)
     }
 
     /// 기분석 형태소열을 추가합니다.
@@ -272,9 +282,9 @@ impl KiwiBuilder {
     /// * `analyzed` - 분석되어야할 각 형태소의 형태와 품사 그리고 각 형태소가 형태 내에서 차지하는 위치를 지정합니다.
     /// * `score` - 점수. 기본적으로는 0을 사용합니다. 0보다 클 경우 이 분석 결과가 더 높은 우선 순위를, 작을 경우 더 낮은 우선 순위를 갖습니다.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// 주어진 형태와 품사로 지정된 형태소가 사전 내에 존재하지 않는 경우에 패닉이 발생합니다.
+    /// 주어진 형태와 품사로 지정된 형태소가 사전 내에 존재하지 않는 경우에 에러를 반환합니다.
     ///
     /// # Example
     ///
@@ -284,26 +294,26 @@ impl KiwiBuilder {
     ///
     /// // without positions
     ///
-    /// let kiwi_builder = KiwiBuilder::new(None, Default::default());
+    /// let kiwi_builder = KiwiBuilder::new(None, Default::default()).unwrap();
     ///
     /// let without_positions = vec![("사귀", POSTag::VV), ("었", POSTag::EP), ("다", POSTag::EF)];
     ///
-    /// kiwi_builder.add_pre_analyzed_word("사겼다", Either::Left(&*without_positions), -3.0);
+    /// kiwi_builder.add_pre_analyzed_word("사겼다", Either::Left(&*without_positions), -3.0).unwrap();
     ///
     /// // with positions
     ///
-    /// let kiwi_builder = KiwiBuilder::new(None, Default::default());
+    /// let kiwi_builder = KiwiBuilder::new(None, Default::default()).unwrap();
     ///
     /// let with_positions = vec![("사귀", POSTag::VV, 0, 2), ("었", POSTag::EP, 1, 2), ("다", POSTag::EF, 2, 3)];
     ///
-    /// kiwi_builder.add_pre_analyzed_word("사겼다", Either::Right(&*with_positions), -3.0);
+    /// kiwi_builder.add_pre_analyzed_word("사겼다", Either::Right(&*with_positions), -3.0).unwrap();
     /// ```
     pub fn add_pre_analyzed_word(
         self,
         form: &str,
         analyzed: Either<&[(&str, POSTag)], &[(&str, POSTag, usize, usize)]>,
         score: f32,
-    ) -> Self {
+    ) -> Result<Self> {
         let (analyzed_morphs, analyzed_pos_tags, positions) = match analyzed {
             Either::Left(analyzed) => (
                 analyzed.iter().map(|x| x.0).collect::<Vec<_>>(),
@@ -363,10 +373,10 @@ impl KiwiBuilder {
 
         if res != 0 {
             let err = kiwi_error().unwrap_or_default();
-            panic!("{}", err);
+            return Err(Error::Native(err));
         }
 
-        self
+        Ok(self)
     }
 
     /// 규칙에 의해 변형된 형태소 목록을 생성하여 자동 추가합니다.
@@ -376,7 +386,7 @@ impl KiwiBuilder {
     /// * `pos_tag` - 변형할 형태소의 품사 태그
     /// * `replacer` - 변형 결과를 제공하는데 쓰일 함수
     /// * `score` - 기본적으로는 0을 사용합니다. 0보다 클 경우 이 변형 결과가 더 높은 우선 순위를, 작을 경우 더 낮은 우선 순위를 갖습니다.
-    pub fn add_rule<F>(self, pos_tag: POSTag, replacer: F, score: f32) -> Self
+    pub fn add_rule<F>(self, pos_tag: POSTag, replacer: F, score: f32) -> Result<Self>
     where
         F: FnMut(&str) -> String,
     {
@@ -414,22 +424,23 @@ impl KiwiBuilder {
 
         if res != 0 {
             let err = kiwi_error().unwrap_or_default();
-            panic!("{}", err);
+            return Err(Error::Native(err));
         }
 
-        self
+        Ok(self)
     }
 
-    pub fn load_dict(self, dict_path: &str) -> Self {
-        let res =
-            unsafe { kiwi_builder_load_dict(self.handle, dict_path.as_ptr() as *const c_char) };
+    pub fn load_dict(self, dict_path: &str) -> Result<Self> {
+        let dict_path = CString::from_str(dict_path).unwrap();
+
+        let res = unsafe { kiwi_builder_load_dict(self.handle, dict_path.as_ptr()) };
 
         if res != 0 {
             let err = kiwi_error().unwrap_or_default();
-            panic!("{}", err);
+            return Err(Error::Native(err));
         }
 
-        self
+        Ok(self)
     }
 
     pub fn extract_words<F>(
@@ -439,7 +450,7 @@ impl KiwiBuilder {
         max_word_len: i32,
         min_score: f32,
         pos_threshold: f32,
-    ) -> WordSegmentation
+    ) -> Result<WordSegmentation>
     where
         F: FnMut(i32) -> String,
     {
@@ -460,10 +471,10 @@ impl KiwiBuilder {
 
             if ws.is_null() {
                 let err = kiwi_error().unwrap_or_default();
-                panic!("{}", err);
+                return Err(Error::Native(err));
             }
 
-            WordSegmentation { handle: ws }
+            Ok(WordSegmentation { handle: ws })
         }
     }
 
@@ -474,7 +485,7 @@ impl KiwiBuilder {
         max_word_len: i32,
         min_score: f32,
         pos_threshold: f32,
-    ) -> WordSegmentation
+    ) -> Result<WordSegmentation>
     where
         F: FnMut(i32) -> String,
     {
@@ -495,10 +506,10 @@ impl KiwiBuilder {
 
             if ws.is_null() {
                 let err = kiwi_error().unwrap_or_default();
-                panic!("{}", err);
+                return Err(Error::Native(err));
             }
 
-            WordSegmentation { handle: ws }
+            Ok(WordSegmentation { handle: ws })
         }
     }
 
@@ -509,7 +520,7 @@ impl KiwiBuilder {
         max_word_len: i32,
         min_score: f32,
         pos_threshold: f32,
-    ) -> WordSegmentation
+    ) -> Result<WordSegmentation>
     where
         F: FnMut(i32) -> U16String,
     {
@@ -530,10 +541,10 @@ impl KiwiBuilder {
 
             if ws.is_null() {
                 let err = kiwi_error().unwrap_or_default();
-                panic!("{}", err);
+                return Err(Error::Native(err));
             }
 
-            WordSegmentation { handle: ws }
+            Ok(WordSegmentation { handle: ws })
         }
     }
 
@@ -544,7 +555,7 @@ impl KiwiBuilder {
         max_word_len: i32,
         min_score: f32,
         pos_threshold: f32,
-    ) -> WordSegmentation
+    ) -> Result<WordSegmentation>
     where
         F: FnMut(i32) -> U16String,
     {
@@ -565,10 +576,10 @@ impl KiwiBuilder {
 
             if ws.is_null() {
                 let err = kiwi_error().unwrap_or_default();
-                panic!("{}", err);
+                return Err(Error::Native(err));
             }
 
-            WordSegmentation { handle: ws }
+            Ok(WordSegmentation { handle: ws })
         }
     }
 
@@ -578,7 +589,7 @@ impl KiwiBuilder {
         self
     }
 
-    pub fn build(mut self) -> Kiwi {
+    pub fn build(mut self) -> Result<Kiwi> {
         let kiwi = unsafe {
             match self.typo.take() {
                 Some(typo) => {
@@ -588,7 +599,12 @@ impl KiwiBuilder {
             }
         };
 
-        Kiwi { handle: kiwi }
+        if kiwi.is_null() {
+            let err = kiwi_error().unwrap_or_default();
+            return Err(Error::Native(err));
+        }
+
+        Ok(Kiwi { handle: kiwi })
     }
 }
 
@@ -597,7 +613,8 @@ impl Drop for KiwiBuilder {
         let res = unsafe { kiwi_builder_close(self.handle) };
 
         if res != 0 {
-            panic!("{}", kiwi_error().unwrap_or_default());
+            let err = kiwi_error().unwrap_or_default();
+            panic!("KiwiBuilder close error: {}", err);
         }
     }
 }

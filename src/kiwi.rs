@@ -2,12 +2,10 @@ use std::{ffi::CString, str::FromStr};
 
 use widestring::{U16CString, U16Str};
 
-use crate::{bindings::*, kiwi_error, Analyzed, Match, MorphSet, Pretokenized};
+use crate::{bindings::*, kiwi_error, Analyzed, Error, Match, MorphSet, Pretokenized, Result};
 
 pub struct Kiwi {
-    // pub(crate) _model_path: CString,
     pub(crate) handle: kiwi_h,
-    // pub(crate) _typo: Option<KiwiTypo>,
 }
 
 impl Kiwi {
@@ -137,7 +135,7 @@ impl Kiwi {
         match_options: Match,
         blocklist: impl Into<Option<&'a MorphSet>>,
         pretokenized: impl Into<Option<&'a Pretokenized>>,
-    ) -> Analyzed {
+    ) -> Result<Analyzed> {
         let blocklist: Option<&MorphSet> = blocklist.into();
         let pretokenized: Option<&Pretokenized> = pretokenized.into();
 
@@ -163,10 +161,10 @@ impl Kiwi {
 
             if res.is_null() {
                 let err = kiwi_error().unwrap_or_default();
-                panic!("{}", err);
+                return Err(Error::Native(err));
             }
 
-            Analyzed { handle: res }
+            Ok(Analyzed::new(res))
         }
     }
 
@@ -188,7 +186,7 @@ impl Kiwi {
         match_options: Match,
         blocklist: impl Into<Option<&'a MorphSet>>,
         pretokenized: impl Into<Option<&'a Pretokenized>>,
-    ) -> Analyzed {
+    ) -> Result<Analyzed> {
         let blocklist: Option<&MorphSet> = blocklist.into();
         let pretokenized: Option<&Pretokenized> = pretokenized.into();
 
@@ -214,10 +212,10 @@ impl Kiwi {
 
             if res.is_null() {
                 let err = kiwi_error().unwrap_or_default();
-                panic!("{}", err);
+                return Err(Error::Native(err));
             }
 
-            Analyzed { handle: res }
+            Ok(Analyzed::new(res))
         }
     }
 }
@@ -227,7 +225,8 @@ impl Drop for Kiwi {
         let res = unsafe { kiwi_close(self.handle) };
 
         if res != 0 {
-            panic!("{}", kiwi_error().unwrap_or_default());
+            let err = kiwi_error().unwrap_or_default();
+            panic!("Kiwi close error: {}", err);
         }
     }
 }

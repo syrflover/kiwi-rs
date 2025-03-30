@@ -1,12 +1,12 @@
 use kiwi::{kiwi_version, KiwiBuilder, KiwiOptions, Match};
 
 #[test]
-fn test_analyze() {
+fn test_analyze() -> anyhow::Result<()> {
     println!("v{}", kiwi_version());
 
     let builder_options = KiwiOptions::default();
 
-    let kiwi = KiwiBuilder::new(2, builder_options).build();
+    let kiwi = KiwiBuilder::new(2, builder_options)?.build()?;
 
     let match_options = Match::new()
         .compatible_jamo(true)
@@ -25,7 +25,7 @@ fn test_analyze() {
         match_options,
         None,
         None,
-    );
+    )?;
 
     println!("{:?}", analyzed.to_vec());
 
@@ -33,4 +33,9 @@ fn test_analyze() {
         print!("{} {} / ", form, token.tag);
     }
     println!();
+
+    // out of bounds
+    assert!(analyzed.word_num(analyzed.size()).is_none());
+
+    Ok(())
 }
