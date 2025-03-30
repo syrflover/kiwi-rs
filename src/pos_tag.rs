@@ -6,7 +6,7 @@ pub struct POSTag(pub(crate) u8);
 macro_rules! impl_pos_tag {
     ($(
         $(#[$docs:meta])*
-        ($num:expr, $name:ident, $phrase:expr),
+        ($num:expr, $name:ident, $phrase:expr $(, [$($alias:expr $(,)?)*])?),
     )*) => {
         impl POSTag {
             $(
@@ -14,11 +14,13 @@ macro_rules! impl_pos_tag {
                 pub const $name: POSTag = POSTag($num);
             )*
 
-            /// 분할된 동사/형용사를 나타내는데 사용됨
-            pub const P: POSTag = POSTag(60);
+            // pub const PV: POSTag = POSTag(60);
             /// POSTag의 총 개수
             pub const MAX: u8 = 61;
+            /// 불규칙 활용을 하는 동/형용사를 나타내는데 사용함
+            pub const IRREGULAR: u8 = 0x80;
 
+            #[inline]
             pub const fn get_num(&self) -> u8 {
                 self.0
             }
@@ -33,7 +35,25 @@ macro_rules! impl_pos_tag {
             }
         }
 
+        impl ::std::str::FromStr for POSTag {
+            type Err = u8;
 
+            fn from_str(s: &str) -> Result<Self, Self::Err> {
+                let r = match s {
+                    $(
+                        $phrase => POSTag::$name,
+                    $(
+                    $(
+                        $alias => POSTag::$name,
+                    )*
+                    )?
+                    )*
+                    _ => return Err(POSTag::MAX),
+                };
+
+                Ok(r)
+            }
+        }
     };
 }
 
@@ -51,7 +71,7 @@ impl AsRef<str> for POSTag {
 
 impl_pos_tag![
     /// 분석 불가
-    (0, UNK, "UNK"),
+    (0, UNK, "UNK", ["^", "NA", "NV", "NF"]),
     /// 체언 - 일반 명사
     (1, NNG, "NNG"),
     /// 체언 - 고유 명사
@@ -59,9 +79,9 @@ impl_pos_tag![
     /// 체언 - 의존 명사
     (3, NNB, "NNB"),
     /// 용언 - 동사
-    (4, VV, "VV"),
+    (4, VV, "VV", ["VV-R"]),
     /// 용언 - 형용사
-    (5, VA, "VA"),
+    (5, VA, "VA", ["VA-R"]),
     /// 부사 - 일반 부사
     (6, MAG, "MAG"),
     /// 체언 - 수사
@@ -69,7 +89,7 @@ impl_pos_tag![
     /// 체언 - 대명사
     (8, NP, "NP"),
     /// 용언 - 보조 용언
-    (9, VX, "VX"),
+    (9, VX, "VX", ["VX-R"]),
     /// 관형사
     (10, MM, "MM"),
     /// 부사 - 접속 부사
@@ -83,7 +103,7 @@ impl_pos_tag![
     /// 접미사 - 동사 파생 접미사
     (15, XSV, "XSV"),
     /// 접미사 - 형용사 파생 접미사
-    (16, XSA, "XSA"),
+    (16, XSA, "XSA", ["XSA-R"]),
     /// 접미사 - 부사 파생 접미사
     (17, XSM, "XSM"),
     /// 어근
@@ -170,36 +190,36 @@ impl_pos_tag![
     (58, USER3, "USER3"),
     /// 사용자 정의 태그 4
     (59, USER4, "USER4"),
-    (60, PV, "PV"),
-    (POSTag::PV.get_num() + 1, PA, "PA"),
-    (0x80, IRREGULAR, "IRREGULAR"),
+    /// 분할된 동사/형용사를 나타내는데 사용됨
+    (60, P, "P", ["V", "A"]),
+    (POSTag::P.get_num() + 1, PA, "PA"),
     (
-        POSTag::VV.get_num() | POSTag::IRREGULAR.get_num(),
+        POSTag::VV.get_num() | POSTag::IRREGULAR,
         VVI,
         "VV-I"
     ),
     (
-        POSTag::VA.get_num() | POSTag::IRREGULAR.get_num(),
+        POSTag::VA.get_num() | POSTag::IRREGULAR,
         VAI,
         "VA-I"
     ),
     (
-        POSTag::VX.get_num() | POSTag::IRREGULAR.get_num(),
+        POSTag::VX.get_num() | POSTag::IRREGULAR,
         VXI,
         "VX-I"
     ),
     (
-        POSTag::XSA.get_num() | POSTag::IRREGULAR.get_num(),
+        POSTag::XSA.get_num() | POSTag::IRREGULAR,
         XSAI,
         "XSA-I"
     ),
     (
-        POSTag::PV.get_num() | POSTag::IRREGULAR.get_num(),
+        POSTag::P.get_num() | POSTag::IRREGULAR,
         PVI,
         "PV-I"
     ),
     (
-        POSTag::PA.get_num() | POSTag::IRREGULAR.get_num(),
+        POSTag::PA.get_num() | POSTag::IRREGULAR,
         PAI,
         "PA-I"
     ),
