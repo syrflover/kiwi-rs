@@ -34,7 +34,20 @@ pub fn kiwi_version() -> String {
     cstr.to_owned().into_string().unwrap()
 }
 
-pub fn kiwi_error() -> Option<String> {
+pub fn get_script_name(script: u8) -> Option<String> {
+    unsafe {
+        let script_name = CStr::from_ptr(bindings::kiwi_get_script_name(script));
+        let script_name = script_name.to_owned().into_string().unwrap();
+
+        if script_name == "Unknown" {
+            return None;
+        }
+
+        Some(script_name)
+    }
+}
+
+pub(crate) fn kiwi_error() -> Option<String> {
     unsafe {
         let err = bindings::kiwi_error();
 
@@ -56,13 +69,24 @@ pub fn kiwi_error() -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use crate::kiwi_version;
+    use crate::{get_script_name, kiwi_version};
 
     #[test]
     fn test_kiwi_version() {
         let v = kiwi_version();
 
-        assert_eq!(v, "0.20.4");
+        assert_eq!(v, "0.20.4", "{}", v);
+    }
+
+    #[test]
+    fn test_kiwi_script_name() {
+        let script_name = get_script_name(255);
+
+        assert!(script_name.is_none(), "{:?}", script_name);
+
+        let script_name = get_script_name(2).unwrap();
+
+        assert_eq!("IPA Extensions", script_name, "{:?}", script_name);
     }
 
     #[test]
