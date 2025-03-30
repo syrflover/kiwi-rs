@@ -295,12 +295,39 @@ impl Analyzed {
         tokens
     }
 
+    /// 모든 분석 결과의 [토큰 정보](Analyzed::token_info)를 리스트로 반환합니다.
+    pub fn to_vec_t(&self) -> Vec<Token> {
+        let res_size = self.size();
+        let mut tokens = Vec::with_capacity(res_size);
+
+        for i in 0..res_size {
+            let word_num = self.word_num(i);
+
+            for j in 0..word_num {
+                let token = self.token_info(i, j);
+
+                // println!("{} {}", form, token.tag);
+
+                tokens.push(token);
+            }
+        }
+
+        tokens
+    }
+
+    /// 모든 분석 결과를 [형태소(UTF-8)](Analyzed::form)와 [토큰 정보](Analyzed::token_info)를 묶은 이터레이터 구조체를 반환합니다.
     pub fn iter(&self) -> Iter {
         Iter::new(self)
     }
 
+    /// 모든 분석 결과를 [형태소(UTF-16)](Analyzed::form_w)와 [토큰 정보](Analyzed::token_info)를 묶은 이터레이터 구조체를 반환합니다.
     pub fn iter_w(&self) -> IterW {
         IterW::new(self)
+    }
+
+    /// 모든 분석 결과의 [토큰 정보](Analyzed::token_info)의 이터레이터 구조체를 반환합니다.
+    pub fn iter_t(&self) -> IterT {
+        IterT::new(self)
     }
 }
 
@@ -316,7 +343,13 @@ impl Drop for Analyzed {
 
 macro_rules! impl_iterator {
     ($(
-        ($struct_name:ident, $form_fn:ident, $form_ty:ty) $(,)?
+        (
+            $struct_name:ident,
+            ($($item_fn:ident $(,)?)+),
+            $item_ty:ty $(,)?
+            $(=> $item_mapper:ident)? $(,)?
+        )
+        $(,)?
     )*) => {
         $(
             pub struct $struct_name<'a> {
@@ -347,7 +380,7 @@ macro_rules! impl_iterator {
             }
 
             impl Iterator for $struct_name<'_> {
-                type Item = ($form_ty, Token);
+                type Item = $item_ty;
 
                 fn next(&mut self) -> Option<Self::Item> {
                     if self.i >= self.size {
@@ -365,16 +398,25 @@ macro_rules! impl_iterator {
                         self.word_num = self.analyzed.word_num(self.i);
                     }
 
-                    let form = self.analyzed.$form_fn(self.i, self.j);
-                    let token = self.analyzed.token_info(self.i, self.j);
+                    let item = ($(self.analyzed.$item_fn(self.i, self.j),)+);
+                    $(let item = $item_mapper(item);)?
 
                     self.j += 1;
 
-                    Some((form, token))
+                    Some(item)
                 }
             }
         )*
     };
 }
 
-impl_iterator![(Iter, form, String), (IterW, form_w, U16String)];
+#[inline]
+fn flat(item: (Token,)) -> Token {
+    item.0
+}
+
+impl_iterator![
+    (Iter, (form, token_info), (String, Token)),
+    (IterW, (form_w, token_info), (U16String, Token)),
+    (IterT, (token_info), Token => flat),
+];
