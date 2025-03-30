@@ -2,7 +2,7 @@ use std::{ffi::CString, str::FromStr};
 
 use widestring::{U16CString, U16Str};
 
-use crate::{bindings::*, kiwi_error, Analyzed, Error, Match, MorphSet, Pretokenized, Result};
+use crate::{bindings::*, kiwi_error, Analyzed, Error, Match, MorphemeSet, Pretokenized, Result};
 
 pub struct Kiwi {
     pub(crate) handle: kiwi_h,
@@ -133,10 +133,10 @@ impl Kiwi {
         text: &str,
         top_n: i32,
         match_options: Match,
-        blocklist: impl Into<Option<&'a MorphSet>>,
+        blocklist: impl Into<Option<&'a MorphemeSet>>,
         pretokenized: impl Into<Option<&'a Pretokenized>>,
     ) -> Result<Analyzed> {
-        let blocklist: Option<&MorphSet> = blocklist.into();
+        let blocklist: Option<&MorphemeSet> = blocklist.into();
         let pretokenized: Option<&Pretokenized> = pretokenized.into();
 
         unsafe {
@@ -184,10 +184,10 @@ impl Kiwi {
         text: impl AsRef<U16Str>,
         top_n: i32,
         match_options: Match,
-        blocklist: impl Into<Option<&'a MorphSet>>,
+        blocklist: impl Into<Option<&'a MorphemeSet>>,
         pretokenized: impl Into<Option<&'a Pretokenized>>,
     ) -> Result<Analyzed> {
-        let blocklist: Option<&MorphSet> = blocklist.into();
+        let blocklist: Option<&MorphemeSet> = blocklist.into();
         let pretokenized: Option<&Pretokenized> = pretokenized.into();
 
         unsafe {
