@@ -1,9 +1,10 @@
 #![allow(clippy::new_without_default, clippy::type_complexity)]
 
-mod analyzed;
+pub mod analyzed;
 mod bindings;
 mod builder;
 pub mod error;
+pub mod extracted;
 mod kiwi;
 mod r#match;
 mod morpheme_set;
@@ -12,11 +13,11 @@ mod pretokenized;
 mod token;
 mod trampoline;
 mod typo;
-mod word_segmentation;
 
-pub use analyzed::*;
+pub use analyzed::Analyzed;
 pub use builder::*;
 pub use error::*;
+pub use extracted::Extracted;
 pub use kiwi::*;
 pub use morpheme_set::*;
 pub use pos_tag::*;
@@ -24,7 +25,6 @@ pub use pretokenized::*;
 pub use r#match::*;
 pub use token::*;
 pub use typo::*;
-pub use word_segmentation::*;
 
 use std::ffi::CStr;
 

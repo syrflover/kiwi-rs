@@ -11,7 +11,7 @@ use crate::{
     bindings::*,
     kiwi_error,
     trampoline::{reader_trampoline, reader_w_trampoline, replacer_trampoline},
-    Error, Kiwi, POSTag, Result, Typo, WordSegmentation,
+    Error, Extracted, Kiwi, POSTag, Result, Typo,
 };
 
 /// [Kiwi] 인스턴스를 생성할 때 사용하는 옵션 구조체
@@ -455,7 +455,7 @@ impl KiwiBuilder {
         max_word_len: i32,
         min_score: f32,
         pos_threshold: f32,
-    ) -> Result<WordSegmentation>
+    ) -> Result<Extracted>
     where
         F: FnMut(i32) -> String,
     {
@@ -479,7 +479,7 @@ impl KiwiBuilder {
                 return Err(Error::Native(err));
             }
 
-            Ok(WordSegmentation { handle: ws })
+            Ok(Extracted::new(ws))
         }
     }
 
@@ -490,7 +490,7 @@ impl KiwiBuilder {
         max_word_len: i32,
         min_score: f32,
         pos_threshold: f32,
-    ) -> Result<WordSegmentation>
+    ) -> Result<Extracted>
     where
         F: FnMut(i32) -> String,
     {
@@ -514,7 +514,7 @@ impl KiwiBuilder {
                 return Err(Error::Native(err));
             }
 
-            Ok(WordSegmentation { handle: ws })
+            Ok(Extracted::new(ws))
         }
     }
 
@@ -525,7 +525,7 @@ impl KiwiBuilder {
         max_word_len: i32,
         min_score: f32,
         pos_threshold: f32,
-    ) -> Result<WordSegmentation>
+    ) -> Result<Extracted>
     where
         F: FnMut(i32) -> U16String,
     {
@@ -549,7 +549,7 @@ impl KiwiBuilder {
                 return Err(Error::Native(err));
             }
 
-            Ok(WordSegmentation { handle: ws })
+            Ok(Extracted::new(ws))
         }
     }
 
@@ -560,7 +560,7 @@ impl KiwiBuilder {
         max_word_len: i32,
         min_score: f32,
         pos_threshold: f32,
-    ) -> Result<WordSegmentation>
+    ) -> Result<Extracted>
     where
         F: FnMut(i32) -> U16String,
     {
@@ -584,7 +584,7 @@ impl KiwiBuilder {
                 return Err(Error::Native(err));
             }
 
-            Ok(WordSegmentation { handle: ws })
+            Ok(Extracted::new(ws))
         }
     }
 
