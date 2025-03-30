@@ -1,5 +1,4 @@
 use std::{
-    fs,
     path::{Path, PathBuf},
     process::{Command, Stdio},
 };
@@ -7,17 +6,19 @@ use std::{
 use bindgen::{RustEdition, RustTarget};
 
 fn main() {
-    link_cxx();
-
     let kiwi_dir = PathBuf::from("Kiwi")
         .canonicalize()
         .expect("can't canonicalize path");
     let header_path = kiwi_dir.join("include/kiwi/capi.h");
     let header_path_str = header_path.to_str().expect("Path is not a valid string");
 
-    let lib_dir = build_kiwi(&kiwi_dir);
-
-    link_kiwi(&lib_dir);
+    if cfg!(feature = "static") {
+        static_link(&kiwi_dir, true);
+    } else if cfg!(feature = "static_prebuilt") {
+        static_link(&kiwi_dir, false);
+    } else {
+        println!("cargo:rustc-link-lib=dylib=kiwi");
+    }
 
     let bindings = bindgen::Builder::default()
         .header(header_path_str)
@@ -33,6 +34,11 @@ fn main() {
     bindings
         .write_to_file(out_path)
         .expect("couldn't write bindings!");
+}
+
+fn static_link(kiwi_dir: &Path, with_build: bool) {
+    link_cxx();
+    link_kiwi(with_build.then(|| build_kiwi(kiwi_dir)).as_deref());
 }
 
 fn link_cxx() {
@@ -58,19 +64,19 @@ fn link_cxx() {
     }
 }
 
-fn link_kiwi(lib_dir: &Path) {
-    println!(
-        "cargo:rustc-link-search=native={}",
-        lib_dir.to_str().unwrap()
-    );
+fn link_kiwi(lib_dir: Option<&Path>) {
+    match lib_dir {
+        Some(lib_dir) => {
+            println!("cargo:rustc-link-search={}", lib_dir.display());
+        }
+        None => {
+            println!("cargo:rustc-link-search=/usr/local/lib");
+        }
+    }
     println!("cargo:rustc-link-lib=static=kiwi_static");
 }
 
 fn build_kiwi(kiwi_dir: &Path) -> PathBuf {
-    let lib_dir = kiwi_dir.join("build");
-
-    fs::create_dir_all(&lib_dir).unwrap();
-
     let res = Command::new("git")
         .args(["lfs", "pull"])
         .current_dir(kiwi_dir)
@@ -107,28 +113,12 @@ fn build_kiwi(kiwi_dir: &Path) -> PathBuf {
         panic!("can't update submodule");
     }
 
-    let res = Command::new("cmake")
-        .args(["-DCMAKE_BUILD_TYPE=Release", "../"])
-        .current_dir(&lib_dir)
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .output()
-        .expect("cmake");
+    let mut cmake = cmake::Config::new(kiwi_dir);
 
-    if !res.status.success() {
-        panic!("cmake");
-    }
+    cmake
+        .define("CMAKE_BUILD_TYPE", "Release")
+        .out_dir(kiwi_dir)
+        .very_verbose(true);
 
-    let res = Command::new("make")
-        .current_dir(&lib_dir)
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .output()
-        .expect("make");
-
-    if !res.status.success() {
-        panic!("make");
-    }
-
-    lib_dir
+    cmake.build().join("build")
 }
