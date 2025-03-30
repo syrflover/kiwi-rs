@@ -12,6 +12,18 @@ fn main() {
     let header_path = kiwi_dir.join("include/kiwi/capi.h");
     let header_path_str = header_path.to_str().expect("Path is not a valid string");
 
+    let res = Command::new("git")
+        .args(["lfs", "pull"])
+        .current_dir(&kiwi_dir)
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .output()
+        .expect("can't pull lfs");
+
+    if !res.status.success() {
+        panic!("can't pull lfs");
+    }
+
     if cfg!(feature = "static") {
         static_link(&kiwi_dir, true);
     } else if cfg!(feature = "static_prebuilt") {
@@ -77,18 +89,6 @@ fn link_kiwi(lib_dir: Option<&Path>) {
 }
 
 fn build_kiwi(kiwi_dir: &Path) -> PathBuf {
-    let res = Command::new("git")
-        .args(["lfs", "pull"])
-        .current_dir(kiwi_dir)
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .output()
-        .expect("can't pull lfs");
-
-    if !res.status.success() {
-        panic!("can't pull lfs");
-    }
-
     let res = Command::new("git")
         .args(["submodule", "sync"])
         .current_dir(kiwi_dir)
