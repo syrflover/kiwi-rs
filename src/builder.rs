@@ -288,19 +288,24 @@ impl KiwiBuilder {
     ///
     /// # Example
     ///
+    /// ## Without positions
+    ///
     /// ```rust
     /// use either::Either;
     /// use kiwi::{KiwiBuilder, POSTag};
-    ///
-    /// // without positions
     ///
     /// let kiwi_builder = KiwiBuilder::new(None, Default::default()).unwrap();
     ///
     /// let without_positions = vec![("사귀", POSTag::VV), ("었", POSTag::EP), ("다", POSTag::EF)];
     ///
     /// kiwi_builder.add_pre_analyzed_word("사겼다", Either::Left(&*without_positions), -3.0).unwrap();
+    /// ```
     ///
-    /// // with positions
+    /// ## With positions
+    ///
+    /// ```rust
+    /// use either::Either;
+    /// use kiwi::{KiwiBuilder, POSTag};
     ///
     /// let kiwi_builder = KiwiBuilder::new(None, Default::default()).unwrap();
     ///
