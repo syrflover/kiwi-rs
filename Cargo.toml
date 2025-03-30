@@ -2,6 +2,15 @@
 name = "kiwi"
 version = "0.20.4-1"
 edition = "2021"
+description = "Rust bindings for Kiwi (Korean Intelligent Word Identifier)"
+authors = ["Lee TaeWoo <user@syrflover.co>"]
+homepage = "https://github.com/syrflover/kiwi-rs"
+repository = "https://github.com/syrflover/kiwi-rs"
+license = "MIT"
+keywords = []
+categories = ["api-bindings", "text-processing"]
+rust-version = "1.84"
+readme = "readme.md"
 
 [features]
 static = []
