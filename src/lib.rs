@@ -1,4 +1,8 @@
-#![allow(clippy::new_without_default, clippy::type_complexity)]
+#![allow(
+    clippy::new_without_default,
+    clippy::type_complexity,
+    clippy::derivable_impls
+)]
 
 pub mod analyzed;
 mod bindings;
@@ -22,7 +26,7 @@ pub use morpheme_set::*;
 pub use pos_tag::*;
 pub use pretokenized::*;
 pub use r#match::*;
-pub use typo::*;
+pub use typo::{DefaultTypoTransferOptions, DefaultTypoTransformer, TypoTransformer};
 
 use std::ffi::CStr;
 

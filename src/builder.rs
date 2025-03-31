@@ -11,7 +11,7 @@ use crate::{
     bindings::*,
     kiwi_error,
     trampoline::{reader_trampoline, reader_w_trampoline, replacer_trampoline},
-    Error, Extracted, Kiwi, POSTag, Result, Typo,
+    typo, Error, Extracted, Kiwi, POSTag, Result,
 };
 
 /// [Kiwi] 인스턴스를 생성할 때 사용하는 옵션 구조체
@@ -119,7 +119,9 @@ impl Default for KiwiOptions {
 
 pub struct KiwiBuilder {
     handle: kiwi_builder_h,
-    typo: Option<Typo>,
+    typo: Option<typo::sealed::TypoTransformer>,
+    /// default: 2.5
+    typo_cost_threshold: f32,
 }
 
 impl KiwiBuilder {
@@ -155,7 +157,11 @@ impl KiwiBuilder {
             return Err(Error::Native(err));
         }
 
-        Ok(Self { handle, typo: None })
+        Ok(Self {
+            handle,
+            typo: None,
+            typo_cost_threshold: 2.5,
+        })
     }
 
     /// [KiwiBuilder]를 생성합니다.
@@ -195,7 +201,11 @@ impl KiwiBuilder {
             return Err(Error::Native(err));
         }
 
-        Ok(Self { handle, typo: None })
+        Ok(Self {
+            handle,
+            typo: None,
+            typo_cost_threshold: 2.5,
+        })
     }
 
     /// 사용자 형태소를 추가합니다.
@@ -588,9 +598,14 @@ impl KiwiBuilder {
         }
     }
 
-    pub fn typo(mut self, mut typo: Typo, typo_cost_threshold: f32) -> Self {
-        typo.typo_cost_threshold = typo_cost_threshold;
-        self.typo.replace(typo);
+    #[allow(private_bounds)]
+    pub fn typo(
+        mut self,
+        typo: impl Into<typo::sealed::TypoTransformer>,
+        typo_cost_threshold: impl Into<Option<f32>>,
+    ) -> Self {
+        self.typo_cost_threshold = (typo_cost_threshold.into() as Option<f32>).unwrap_or(2.5);
+        self.typo.replace(typo.into());
         self
     }
 
@@ -598,7 +613,7 @@ impl KiwiBuilder {
         let kiwi = unsafe {
             match self.typo.take() {
                 Some(typo) => {
-                    kiwi_builder_build(self.handle, typo.handle, typo.typo_cost_threshold)
+                    kiwi_builder_build(self.handle, typo.get_handle(), self.typo_cost_threshold)
                 }
                 None => kiwi_builder_build(self.handle, std::ptr::null_mut(), 0.0),
             }
