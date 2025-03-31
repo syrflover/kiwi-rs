@@ -5,24 +5,16 @@ use std::{
 
 use bindgen::{RustEdition, RustTarget};
 
+const KIWI_GIT: &str = "https://github.com/bab2min/Kiwi.git";
+const KIWI_VERSION: &str = "v0.20.4";
+
 fn main() {
-    let kiwi_dir = PathBuf::from("Kiwi")
-        .canonicalize()
-        .expect("can't canonicalize path");
+    load_kiwi_sources("Kiwi".as_ref());
+    load_kiwi_models("Kiwi".as_ref());
+
+    let kiwi_dir = PathBuf::from("Kiwi").canonicalize().unwrap();
     let header_path = kiwi_dir.join("include/kiwi/capi.h");
     let header_path_str = header_path.to_str().expect("Path is not a valid string");
-
-    let res = Command::new("git")
-        .args(["lfs", "pull"])
-        .current_dir(&kiwi_dir)
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .output()
-        .expect("can't pull lfs");
-
-    if !res.status.success() {
-        panic!("can't pull lfs");
-    }
 
     if cfg!(feature = "static") {
         static_link(&kiwi_dir, true);
@@ -48,9 +40,103 @@ fn main() {
         .expect("couldn't write bindings!");
 }
 
+fn load_kiwi_sources(kiwi_dir: &Path) {
+    if kiwi_dir.exists() {
+        let res = Command::new("git")
+            .args(["fetch", "--depth", "1"])
+            .current_dir(kiwi_dir)
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .output()
+            .expect("can't fetch Kiwi");
+
+        if !res.status.success() {
+            panic!("can't fetch Kiwi");
+        }
+
+        let res = Command::new("git")
+            .args(["checkout", KIWI_VERSION])
+            .current_dir(kiwi_dir)
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .output()
+            .expect("can't checkout Kiwi");
+
+        if !res.status.success() {
+            panic!("can't checkout Kiwi");
+        }
+    } else {
+        let res = Command::new("git")
+            .args(["clone", "--depth", "1", "--branch", KIWI_VERSION, KIWI_GIT])
+            .current_dir(".")
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .output()
+            .expect("can't clone Kiwi");
+
+        if !res.status.success() {
+            panic!("can't clone Kiwi");
+        }
+    }
+}
+
+fn load_kiwi_models(kiwi_dir: &Path) {
+    let res = Command::new("git")
+        .args(["lfs", "pull"])
+        .current_dir(kiwi_dir)
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .output()
+        .expect("can't lfs pull models");
+
+    if !res.status.success() {
+        panic!("can't lfs pull models");
+    }
+}
+
+fn load_kiwi_submodules(kiwi_dir: &Path) {
+    let res = Command::new("git")
+        .args(["submodule", "sync"])
+        .current_dir(kiwi_dir)
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .output()
+        .expect("can't sync submodule");
+
+    if !res.status.success() {
+        panic!("can't sync submodule");
+    }
+
+    let res = Command::new("git")
+        .args([
+            "submodule",
+            "update",
+            "--init",
+            "--recursive",
+            "--depth",
+            "1",
+        ])
+        .current_dir(kiwi_dir)
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .output()
+        .expect("can't update submodule");
+
+    if !res.status.success() {
+        panic!("can't update submodule");
+    }
+}
+
 fn static_link(kiwi_dir: &Path, with_build: bool) {
     link_cxx();
-    link_kiwi(with_build.then(|| build_kiwi(kiwi_dir)).as_deref());
+    link_kiwi(
+        with_build
+            .then(|| {
+                load_kiwi_submodules(kiwi_dir);
+                build_kiwi(kiwi_dir)
+            })
+            .as_deref(),
+    );
 }
 
 fn link_cxx() {
@@ -89,30 +175,6 @@ fn link_kiwi(lib_dir: Option<&Path>) {
 }
 
 fn build_kiwi(kiwi_dir: &Path) -> PathBuf {
-    let res = Command::new("git")
-        .args(["submodule", "sync"])
-        .current_dir(kiwi_dir)
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .output()
-        .expect("can't sync submodule");
-
-    if !res.status.success() {
-        panic!("can't sync submodule");
-    }
-
-    let res = Command::new("git")
-        .args(["submodule", "update", "--init", "--recursive"])
-        .current_dir(kiwi_dir)
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .output()
-        .expect("can't update submodule");
-
-    if !res.status.success() {
-        panic!("can't update submodule");
-    }
-
     let mut cmake = cmake::Config::new(kiwi_dir);
 
     cmake

@@ -1,6 +1,6 @@
 [package]
 name = "rkiwi"
-version = "0.20.4-1"
+version = "0.20.4-1" # change KIWI_VERSION in build.rs
 edition = "2021"
 description = "Rust bindings for Kiwi (Korean Intelligent Word Identifier)"
 authors = ["Lee TaeWoo <user@syrflover.co>"]
