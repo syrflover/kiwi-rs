@@ -168,7 +168,10 @@ fn link_kiwi(lib_dir: Option<&Path>) {
             println!("cargo:rustc-link-search={}", lib_dir.display());
         }
         None => {
-            println!("cargo:rustc-link-search=/usr/local/lib");
+            let static_lib_dir = std::env::var("KIWI_STATIC_LIB_PATH")
+                .expect("can't read environment variable `KIWI_STATIC_LIB_PATH`");
+
+            println!("cargo:rustc-link-search={}", static_lib_dir);
         }
     }
     println!("cargo:rustc-link-lib=static=kiwi_static");
