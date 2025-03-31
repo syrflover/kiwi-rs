@@ -9,8 +9,8 @@
 - [x] Analyzed (kiwi_res)
 - [x] Extracted (kiwi_ws)
 - [x] MorphemeSet (kiwi_morphset)
+- [x] Pretokenized (kiwi_pt, kiwi_pretokenized)
 - [ ] Typo (kiwi_typo)
-- [ ] Pretokenized (kiwi_pt, kiwi_pretokenized)
 - [ ] kiwi_ss
 - [ ] kiwi_joiner
 - [ ] kiwi_swt
