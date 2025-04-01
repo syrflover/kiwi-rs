@@ -1,6 +1,6 @@
-use std::fmt::Display;
+use std::{fmt::Display, ops::Deref};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct POSTag(pub(crate) u8);
 
 macro_rules! impl_pos_tag {
@@ -66,6 +66,14 @@ impl Display for POSTag {
 impl AsRef<str> for POSTag {
     fn as_ref(&self) -> &str {
         self.as_str()
+    }
+}
+
+impl Deref for POSTag {
+    type Target = u8;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
