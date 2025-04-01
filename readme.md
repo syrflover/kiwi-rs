@@ -10,7 +10,7 @@
 - [x] Extracted (kiwi_ws)
 - [x] MorphemeSet (kiwi_morphset)
 - [x] Pretokenized (kiwi_pt, kiwi_pretokenized)
-- [ ] Typo (kiwi_typo)
+- [x] TypoTransformer (kiwi_typo)
 - [ ] kiwi_ss
 - [ ] kiwi_joiner
 - [ ] kiwi_swt
