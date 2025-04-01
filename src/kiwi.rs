@@ -175,18 +175,17 @@ impl Kiwi {
 
         let text = CString::from_str(text).unwrap();
 
-        let blocklist = blocklist.map(|x| x.handle.lock());
-        let blocklist = match blocklist.as_ref() {
-            Some(blocklist) => **blocklist,
-            None => std::ptr::null::<kiwi_morphset>() as *mut _,
-        };
-        let pretokenized = pretokenized.map(|x| x.handle.lock());
-        let pretokenized = match pretokenized.as_ref() {
-            Some(pretokenized) => **pretokenized,
-            None => std::ptr::null::<kiwi_pretokenized>() as *mut _,
-        };
-
         let res = unsafe {
+            let blocklist = blocklist.map(|x| x.handle.lock());
+            let blocklist = match blocklist.as_ref() {
+                Some(blocklist) => **blocklist,
+                None => std::ptr::null::<kiwi_morphset>() as *mut _,
+            };
+            let pretokenized = pretokenized.map(|x| x.handle.lock());
+            let pretokenized = match pretokenized.as_ref() {
+                Some(pretokenized) => **pretokenized,
+                None => std::ptr::null::<kiwi_pretokenized>() as *mut _,
+            };
             let handle = self.handle.read();
             kiwi_analyze(
                 *handle,
@@ -230,18 +229,17 @@ impl Kiwi {
 
         let text = U16CString::from_ustr(text).unwrap();
 
-        let blocklist = blocklist.map(|x| x.handle.lock());
-        let blocklist = match blocklist.as_ref() {
-            Some(blocklist) => **blocklist,
-            None => std::ptr::null::<kiwi_morphset>() as *mut _,
-        };
-        let pretokenized = pretokenized.map(|x| x.handle.lock());
-        let pretokenized = match pretokenized.as_ref() {
-            Some(pretokenized) => **pretokenized,
-            None => std::ptr::null::<kiwi_pretokenized>() as *mut _,
-        };
-
         let res = unsafe {
+            let blocklist = blocklist.map(|x| x.handle.lock());
+            let blocklist = match blocklist.as_ref() {
+                Some(blocklist) => **blocklist,
+                None => std::ptr::null::<kiwi_morphset>() as *mut _,
+            };
+            let pretokenized = pretokenized.map(|x| x.handle.lock());
+            let pretokenized = match pretokenized.as_ref() {
+                Some(pretokenized) => **pretokenized,
+                None => std::ptr::null::<kiwi_pretokenized>() as *mut _,
+            };
             let handle = self.handle.read();
             kiwi_analyze_w(
                 *handle,
