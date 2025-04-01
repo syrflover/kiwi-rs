@@ -622,7 +622,7 @@ impl KiwiBuilder {
     /// * `typo` - [DefaultTypoTransformer](crate::typo::DefaultTypoTransformer) 또는 [TypoTransformer](crate::typo::TypoTransformer).
     ///            `&typo`처럼 borrowed 값을 줘도 되고,
     ///            `typo`처럼 owned 값을 줘도 됩니다.
-    /// * `typo_cost_threshold` - 값을 넘어가는 비용이 드는 오타는 교정하지 않습니다.
+    /// * `typo_cost_threshold` - 값을 넘어가는 비용이 필요한 오타는 교정하지 않습니다.
     pub fn build<'typo>(
         &self,
         typo: impl Into<Option<typo::sealed::TypoTransformer<'typo>>>,
