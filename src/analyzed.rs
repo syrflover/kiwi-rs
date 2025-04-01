@@ -2,7 +2,7 @@ use std::ffi::CStr;
 
 use widestring::{U16CStr, U16String};
 
-use crate::{bindings::*, kiwi_error, POSTag};
+use crate::{bindings::*, kiwi_error, KiwiRc, POSTag};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Token {
@@ -20,7 +20,9 @@ pub struct Token {
     pub tag: POSTag,
     /// 해당 형태소의 언어모델 점수
     pub score: f32,
-    /// 오타가 교정한 오타 비용. 그렇지 않는 경우 0
+    /// 오타를 교정하는데 사용된 비용
+    ///
+    /// `0`은 오타 교정이 발생하지 않았음을 의미함
     pub typo_cost: f32,
     /// 교정 전 오타의 형태에 대한 정보 (typo_cost가 0인 경우 PreTokenizedSpan의 ID값)
     pub typo_form_id: u32,
@@ -39,12 +41,17 @@ pub struct Token {
 ///
 /// [Kiwi::analyze]: crate::Kiwi::analyze
 /// [Kiwi::analyze_w]: crate::Kiwi::analyze_w
+#[derive(Clone)]
 pub struct Analyzed {
-    pub(crate) handle: kiwi_res_h,
+    pub(crate) handle: KiwiRc<kiwi_res_h>,
     size: usize,
     /// words\[n\] = word_num
     words: Box<[usize]>,
 }
+
+#[cfg(feature = "impl_send")]
+unsafe impl Send for Analyzed {}
+// unsafe impl Sync for Analyzed {}
 
 #[inline]
 fn size(handle: kiwi_res_h) -> usize {
@@ -84,7 +91,8 @@ impl Analyzed {
         }
 
         Self {
-            handle,
+            #[allow(clippy::arc_with_non_send_sync)]
+            handle: KiwiRc::new(handle),
             size,
             words: words.into_boxed_slice(),
         }
@@ -109,7 +117,7 @@ impl Analyzed {
         self.check_index(index, None)?;
 
         unsafe {
-            let prob = kiwi_res_prob(self.handle, index as i32);
+            let prob = kiwi_res_prob(*self.handle, index as i32);
 
             if prob == 0.0 {
                 let err = kiwi_error();
@@ -138,7 +146,7 @@ impl Analyzed {
     #[inline]
     fn token_unchecked(&self, index: usize, word_num: usize) -> Token {
         unsafe {
-            let token = kiwi_res_token_info(self.handle, index as i32, word_num as i32);
+            let token = kiwi_res_token_info(*self.handle, index as i32, word_num as i32);
 
             if token.is_null() {
                 let err = kiwi_error();
@@ -190,7 +198,7 @@ impl Analyzed {
     #[inline]
     fn form_unchecked(&self, index: usize, word_num: usize) -> String {
         unsafe {
-            let form = kiwi_res_form(self.handle, index as i32, word_num as i32);
+            let form = kiwi_res_form(*self.handle, index as i32, word_num as i32);
 
             if form.is_null() {
                 let err = kiwi_error();
@@ -215,7 +223,7 @@ impl Analyzed {
     #[inline]
     fn form_w_unchecked(&self, index: usize, word_num: usize) -> U16String {
         unsafe {
-            let form = kiwi_res_form_w(self.handle, index as i32, word_num as i32);
+            let form = kiwi_res_form_w(*self.handle, index as i32, word_num as i32);
 
             if form.is_null() {
                 let err = kiwi_error();
@@ -236,7 +244,7 @@ impl Analyzed {
         self.check_index(index, word_num)?;
 
         unsafe {
-            let tag = kiwi_res_tag(self.handle, index as i32, word_num as i32);
+            let tag = kiwi_res_tag(*self.handle, index as i32, word_num as i32);
 
             if tag.is_null() {
                 let err = kiwi_error();
@@ -257,7 +265,7 @@ impl Analyzed {
         self.check_index(index, word_num)?;
 
         unsafe {
-            let tag = kiwi_res_tag_w(self.handle, index as i32, word_num as i32);
+            let tag = kiwi_res_tag_w(*self.handle, index as i32, word_num as i32);
 
             if tag.is_null() {
                 let err = kiwi_error();
@@ -275,7 +283,7 @@ impl Analyzed {
         self.check_index(index, word_num)?;
 
         unsafe {
-            let length = kiwi_res_length(self.handle, index as i32, word_num as i32);
+            let length = kiwi_res_length(*self.handle, index as i32, word_num as i32);
 
             if length < 0 {
                 let err = kiwi_error();
@@ -291,7 +299,7 @@ impl Analyzed {
         self.check_index(index, word_num)?;
 
         unsafe {
-            let word_position = kiwi_res_word_position(self.handle, index as i32, word_num as i32);
+            let word_position = kiwi_res_word_position(*self.handle, index as i32, word_num as i32);
 
             if word_position < 0 {
                 let err = kiwi_error();
@@ -310,7 +318,7 @@ impl Analyzed {
         self.check_index(index, word_num)?;
 
         unsafe {
-            let sent_position = kiwi_res_sent_position(self.handle, index as i32, word_num as i32);
+            let sent_position = kiwi_res_sent_position(*self.handle, index as i32, word_num as i32);
 
             if sent_position < 0 {
                 let err = kiwi_error();
@@ -329,7 +337,7 @@ impl Analyzed {
         self.check_index(index, word_num)?;
 
         unsafe {
-            let score = kiwi_res_score(self.handle, index as i32, word_num as i32);
+            let score = kiwi_res_score(*self.handle, index as i32, word_num as i32);
 
             if score == 0.0 {
                 let err = kiwi_error();
@@ -341,11 +349,14 @@ impl Analyzed {
     }
 
     /// index번째 분석 결과의 word_num번째 형태소의 오타 교정 비용을 반환합니다.
+    ///
+    /// # Return
+    /// `0`은 오타 교정이 발생하지 않았음을 의미함
     pub fn typo_cost(&self, index: usize, word_num: usize) -> Option<f32> {
         self.check_index(index, word_num)?;
 
         unsafe {
-            let typo_cost = kiwi_res_typo_cost(self.handle, index as i32, word_num as i32);
+            let typo_cost = kiwi_res_typo_cost(*self.handle, index as i32, word_num as i32);
 
             if typo_cost < 0.0 {
                 let err = kiwi_error();
@@ -442,12 +453,18 @@ impl Analyzed {
 
 impl Drop for Analyzed {
     fn drop(&mut self) {
-        let res = unsafe { kiwi_res_close(self.handle) };
+        if KiwiRc::strong_count(&self.handle) > 1 {
+            return;
+        }
+
+        let res = unsafe { kiwi_res_close(*self.handle) };
 
         if res != 0 {
             let err = kiwi_error();
             panic!("Analyzed close error: {:?}", err);
         }
+
+        tracing::trace!("closed `Analyzed`");
     }
 }
 

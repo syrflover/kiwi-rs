@@ -1,33 +1,77 @@
 use std::{ffi::CString, str::FromStr};
 
-use crate::{bindings::*, kiwi_error, Error, Result};
+use parking_lot::Mutex;
+
+use crate::{bindings::*, kiwi_error, Error, KiwiRc, Result};
 
 pub(crate) mod sealed {
-    use crate::bindings::kiwi_typo_h;
+    use std::borrow::Cow;
 
-    pub enum TypoTransformer {
-        Default(super::DefaultTypoTransformer),
-        Normal(super::TypoTransformer),
+    use parking_lot::MutexGuard;
+
+    use super::*;
+
+    pub enum TypoTransformer<'a> {
+        Default(Cow<'a, super::DefaultTypoTransformer>),
+        Normal(Cow<'a, super::TypoTransformer>),
     }
 
-    impl TypoTransformer {
-        pub(crate) fn get_handle(&self) -> kiwi_typo_h {
+    impl TypoTransformer<'_> {
+        pub(crate) fn get_handle(
+            &self,
+        ) -> (Option<kiwi_typo_h>, Option<MutexGuard<'_, *mut kiwi_typo>>) {
             match self {
-                TypoTransformer::Default(typo) => typo.handle,
-                TypoTransformer::Normal(typo) => typo.handle,
+                TypoTransformer::Default(t) => (Some(t.handle), None),
+                TypoTransformer::Normal(t) => (None, Some(t.handle.lock())),
             }
         }
     }
 
-    impl From<super::DefaultTypoTransformer> for TypoTransformer {
+    impl From<super::DefaultTypoTransformer> for TypoTransformer<'_> {
         fn from(typo: super::DefaultTypoTransformer) -> Self {
-            Self::Default(typo)
+            Self::Default(Cow::Owned(typo))
         }
     }
 
-    impl From<super::TypoTransformer> for TypoTransformer {
+    impl<'a> From<&'a super::DefaultTypoTransformer> for TypoTransformer<'a> {
+        fn from(typo: &'a super::DefaultTypoTransformer) -> Self {
+            Self::Default(Cow::Borrowed(typo))
+        }
+    }
+
+    impl From<super::DefaultTypoTransformer> for Option<TypoTransformer<'_>> {
+        fn from(typo: super::DefaultTypoTransformer) -> Self {
+            Some(TypoTransformer::Default(Cow::Owned(typo)))
+        }
+    }
+
+    impl<'a> From<&'a super::DefaultTypoTransformer> for Option<TypoTransformer<'a>> {
+        fn from(typo: &'a super::DefaultTypoTransformer) -> Self {
+            Some(TypoTransformer::Default(Cow::Borrowed(typo)))
+        }
+    }
+
+    impl From<super::TypoTransformer> for TypoTransformer<'_> {
         fn from(typo: super::TypoTransformer) -> Self {
-            Self::Normal(typo)
+            Self::Normal(Cow::Owned(typo))
+        }
+    }
+
+    impl<'a> From<&'a super::TypoTransformer> for TypoTransformer<'a> {
+        fn from(typo: &'a super::TypoTransformer) -> Self {
+            Self::Normal(Cow::Borrowed(typo))
+        }
+    }
+
+    impl From<super::TypoTransformer> for Option<TypoTransformer<'_>> {
+        fn from(typo: super::TypoTransformer) -> Self {
+            Some(TypoTransformer::Normal(Cow::Owned(typo)))
+        }
+    }
+
+    impl<'a> From<&'a super::TypoTransformer> for Option<TypoTransformer<'a>> {
+        fn from(typo: &'a super::TypoTransformer) -> Self {
+            Some(TypoTransformer::Normal(Cow::Borrowed(typo)))
         }
     }
 }
@@ -61,7 +105,7 @@ impl Default for CondVowel {
     }
 }
 
-pub enum DefaultTypoTransferOptions {
+pub enum DefaultTypoSet {
     WithoutTypo,
     BasicTypoSet,
     ContinualTypoSet,
@@ -70,19 +114,27 @@ pub enum DefaultTypoTransferOptions {
     BasicTypoSetWithContinualAndLengthening,
 }
 
+#[derive(Clone)]
 pub struct DefaultTypoTransformer {
     pub(crate) handle: kiwi_typo_h,
 }
 
+#[cfg(feature = "impl_send")]
+unsafe impl Send for DefaultTypoTransformer {}
+
 impl DefaultTypoTransformer {
-    pub fn new(options: DefaultTypoTransferOptions) -> Result<Self> {
+    pub fn new(options: DefaultTypoSet) -> Result<Self> {
         TypoTransformer::default(options)
     }
 }
 
+#[derive(Clone)]
 pub struct TypoTransformer {
-    pub(crate) handle: kiwi_typo_h,
+    pub(crate) handle: KiwiRc<Mutex<kiwi_typo_h>>,
 }
+
+#[cfg(feature = "impl_send")]
+unsafe impl Send for TypoTransformer {}
 
 impl TypoTransformer {
     pub fn new() -> Result<Self> {
@@ -93,7 +145,10 @@ impl TypoTransformer {
             return Err(Error::Native(err));
         }
 
-        Ok(Self { handle })
+        Ok(Self {
+            #[allow(clippy::arc_with_non_send_sync)]
+            handle: KiwiRc::new(Mutex::new(handle)),
+        })
     }
 
     pub fn basic() -> Result<DefaultTypoTransformer> {
@@ -107,16 +162,14 @@ impl TypoTransformer {
         Ok(DefaultTypoTransformer { handle })
     }
 
-    pub fn default(options: DefaultTypoTransferOptions) -> Result<DefaultTypoTransformer> {
+    pub fn default(options: DefaultTypoSet) -> Result<DefaultTypoTransformer> {
         let options = match options {
-            DefaultTypoTransferOptions::WithoutTypo => KIWI_TYPO_WITHOUT_TYPO,
-            DefaultTypoTransferOptions::BasicTypoSet => KIWI_TYPO_BASIC_TYPO_SET,
-            DefaultTypoTransferOptions::ContinualTypoSet => KIWI_TYPO_CONTINUAL_TYPO_SET,
-            DefaultTypoTransferOptions::BasicTypoSetWithContinual => {
-                KIWI_TYPO_BASIC_TYPO_SET_WITH_CONTINUAL
-            }
-            DefaultTypoTransferOptions::LengtheningTypoSet => KIWI_TYPO_LENGTHENING_TYPO_SET,
-            DefaultTypoTransferOptions::BasicTypoSetWithContinualAndLengthening => {
+            DefaultTypoSet::WithoutTypo => KIWI_TYPO_WITHOUT_TYPO,
+            DefaultTypoSet::BasicTypoSet => KIWI_TYPO_BASIC_TYPO_SET,
+            DefaultTypoSet::ContinualTypoSet => KIWI_TYPO_CONTINUAL_TYPO_SET,
+            DefaultTypoSet::BasicTypoSetWithContinual => KIWI_TYPO_BASIC_TYPO_SET_WITH_CONTINUAL,
+            DefaultTypoSet::LengtheningTypoSet => KIWI_TYPO_LENGTHENING_TYPO_SET,
+            DefaultTypoSet::BasicTypoSetWithContinualAndLengthening => {
                 KIWI_TYPO_BASIC_TYPO_SET_WITH_CONTINUAL_AND_LENGTHENING
             }
         };
@@ -153,8 +206,9 @@ impl TypoTransformer {
         };
 
         let res = unsafe {
+            let handle = self.handle.lock();
             kiwi_typo_add(
-                self.handle,
+                *handle,
                 originals.as_mut_ptr(),
                 originals.len() as i32,
                 errors.as_mut_ptr(),
@@ -172,8 +226,15 @@ impl TypoTransformer {
         Ok(())
     }
 
-    pub fn update(&self, other: impl Into<sealed::TypoTransformer>) -> Result<()> {
-        let res = unsafe { kiwi_typo_update(self.handle, other.into().get_handle()) };
+    pub fn update<'other>(&self, other: impl Into<sealed::TypoTransformer<'other>>) -> Result<()> {
+        let other: sealed::TypoTransformer = other.into();
+
+        let res = unsafe {
+            let handle = self.handle.lock();
+            let (t1, t2) = other.get_handle();
+            let other = t1.or(t2.as_ref().map(|x| **x)).unwrap();
+            kiwi_typo_update(*handle, other)
+        };
 
         if res != 0 {
             let err = kiwi_error().unwrap_or_default();
@@ -184,7 +245,10 @@ impl TypoTransformer {
     }
 
     pub fn scale_cost(&self, scale: f32) -> Result<()> {
-        let res = unsafe { kiwi_typo_scale_cost(self.handle, scale) };
+        let res = unsafe {
+            let handle = self.handle.lock();
+            kiwi_typo_scale_cost(*handle, scale)
+        };
 
         if res != 0 {
             let err = kiwi_error().unwrap_or_default();
@@ -195,7 +259,10 @@ impl TypoTransformer {
     }
 
     pub fn set_continual_typo_cost(&self, threshold: f32) -> Result<()> {
-        let res = unsafe { kiwi_typo_set_continual_typo_cost(self.handle, threshold) };
+        let res = unsafe {
+            let handle = self.handle.lock();
+            kiwi_typo_set_continual_typo_cost(*handle, threshold)
+        };
 
         if res != 0 {
             let err = kiwi_error().unwrap_or_default();
@@ -206,7 +273,10 @@ impl TypoTransformer {
     }
 
     pub fn set_lengthening_typo_cost(&self, threshold: f32) -> Result<()> {
-        let res = unsafe { kiwi_typo_set_lengthening_typo_cost(self.handle, threshold) };
+        let res = unsafe {
+            let handle = self.handle.lock();
+            kiwi_typo_set_lengthening_typo_cost(*handle, threshold)
+        };
 
         if res != 0 {
             let err = kiwi_error().unwrap_or_default();
@@ -219,10 +289,19 @@ impl TypoTransformer {
 
 impl Drop for TypoTransformer {
     fn drop(&mut self) {
-        let res = unsafe { kiwi_typo_close(self.handle) };
+        if KiwiRc::strong_count(&self.handle) > 1 {
+            return;
+        }
+
+        let res = unsafe {
+            let handle = self.handle.lock();
+            kiwi_typo_close(*handle)
+        };
 
         if res != 0 {
             panic!("{}", kiwi_error().unwrap_or_default());
         }
+
+        tracing::trace!("closed `TypoTransformer`");
     }
 }

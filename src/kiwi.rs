@@ -1,12 +1,20 @@
 use std::{ffi::CString, str::FromStr};
 
+use parking_lot::RwLock;
 use widestring::{U16CString, U16Str};
 
-use crate::{bindings::*, kiwi_error, Analyzed, Error, Match, MorphemeSet, Pretokenized, Result};
+use crate::{
+    bindings::*, kiwi_error, Analyzed, Error, KiwiRc, Match, MorphemeSet, Pretokenized, Result,
+};
 
+#[derive(Clone)]
 pub struct Kiwi {
-    pub(crate) handle: kiwi_h,
+    pub(crate) handle: KiwiRc<RwLock<kiwi_h>>,
 }
+
+#[cfg(feature = "impl_send")]
+unsafe impl Send for Kiwi {}
+// unsafe impl Sync for Kiwi {}
 
 impl Kiwi {
     // pub(crate) fn new<P>(
@@ -46,75 +54,101 @@ impl Kiwi {
         let value = if r { 1 } else { 0 };
 
         unsafe {
-            kiwi_set_option(self.handle, KIWI_BUILD_INTEGRATE_ALLOMORPH as i32, value);
+            let handle = self.handle.write();
+            kiwi_set_option(*handle, KIWI_BUILD_INTEGRATE_ALLOMORPH as i32, value);
         }
     }
 
     pub fn get_integrate_allomorph(&self) -> bool {
         unsafe {
-            let r = kiwi_get_option(self.handle, KIWI_BUILD_INTEGRATE_ALLOMORPH as i32);
+            let handle = self.handle.read();
+            let r = kiwi_get_option(*handle, KIWI_BUILD_INTEGRATE_ALLOMORPH as i32);
             r != 0
         }
     }
 
     pub fn set_max_unk_form_size(&self, r: u32) {
         unsafe {
-            kiwi_set_option(self.handle, KIWI_MAX_UNK_FORM_SIZE as i32, r as i32);
+            let handle = self.handle.write();
+            kiwi_set_option(*handle, KIWI_MAX_UNK_FORM_SIZE as i32, r as i32);
         }
     }
 
     pub fn get_max_unk_form_size(&self) -> u32 {
-        unsafe { kiwi_get_option(self.handle, KIWI_MAX_UNK_FORM_SIZE as i32) as u32 }
+        unsafe {
+            let handle = self.handle.read();
+            kiwi_get_option(*handle, KIWI_MAX_UNK_FORM_SIZE as i32) as u32
+        }
     }
 
     pub fn set_space_tolerance(&self, r: u32) {
         unsafe {
-            kiwi_set_option(self.handle, KIWI_SPACE_TOLERANCE as i32, r as i32);
+            let handle = self.handle.write();
+            kiwi_set_option(*handle, KIWI_SPACE_TOLERANCE as i32, r as i32);
         }
     }
 
     pub fn get_space_tolerance(&self) -> u32 {
-        unsafe { kiwi_get_option(self.handle, KIWI_SPACE_TOLERANCE as i32) as u32 }
+        unsafe {
+            let handle = self.handle.read();
+            kiwi_get_option(*handle, KIWI_SPACE_TOLERANCE as i32) as u32
+        }
     }
 
     pub fn set_cut_off_threshold(&self, r: f32) {
         unsafe {
-            kiwi_set_option_f(self.handle, KIWI_CUT_OFF_THRESHOLD as i32, r);
+            let handle = self.handle.write();
+            kiwi_set_option_f(*handle, KIWI_CUT_OFF_THRESHOLD as i32, r);
         }
     }
 
     pub fn get_cut_off_threshold(&self) -> f32 {
-        unsafe { kiwi_get_option_f(self.handle, KIWI_CUT_OFF_THRESHOLD as i32) }
+        unsafe {
+            let handle = self.handle.read();
+            kiwi_get_option_f(*handle, KIWI_CUT_OFF_THRESHOLD as i32)
+        }
     }
 
     pub fn set_unk_form_score_scale(&self, r: f32) {
         unsafe {
-            kiwi_set_option_f(self.handle, KIWI_UNK_FORM_SCORE_SCALE as i32, r);
+            let handle = self.handle.write();
+            kiwi_set_option_f(*handle, KIWI_UNK_FORM_SCORE_SCALE as i32, r);
         }
     }
 
     pub fn get_unk_form_score_scale(&self) -> f32 {
-        unsafe { kiwi_get_option_f(self.handle, KIWI_UNK_FORM_SCORE_SCALE as i32) }
+        unsafe {
+            let handle = self.handle.read();
+            kiwi_get_option_f(*handle, KIWI_UNK_FORM_SCORE_SCALE as i32)
+        }
     }
 
     pub fn set_unk_form_score_bias(&self, r: f32) {
         unsafe {
-            kiwi_set_option_f(self.handle, KIWI_UNK_FORM_SCORE_BIAS as i32, r);
+            let handle = self.handle.write();
+            kiwi_set_option_f(*handle, KIWI_UNK_FORM_SCORE_BIAS as i32, r);
         }
     }
 
     pub fn get_unk_form_score_bias(&self) -> f32 {
-        unsafe { kiwi_get_option_f(self.handle, KIWI_UNK_FORM_SCORE_BIAS as i32) }
+        unsafe {
+            let handle = self.handle.read();
+            kiwi_get_option_f(*handle, KIWI_UNK_FORM_SCORE_BIAS as i32)
+        }
     }
 
     pub fn set_space_penalty(&self, r: f32) {
         unsafe {
-            kiwi_set_option_f(self.handle, KIWI_SPACE_PENALTY as i32, r);
+            let handle = self.handle.write();
+            kiwi_set_option_f(*handle, KIWI_SPACE_PENALTY as i32, r);
         }
     }
 
     pub fn get_space_penalty(&self) -> f32 {
-        unsafe { kiwi_get_option_f(self.handle, KIWI_SPACE_PENALTY as i32) }
+        unsafe {
+            let handle = self.handle.read();
+            kiwi_get_option_f(*handle, KIWI_SPACE_PENALTY as i32)
+        }
     }
 
     /// 텍스트를 분석해 형태소 결과를 반환합니다.
@@ -139,33 +173,37 @@ impl Kiwi {
         let blocklist: Option<&MorphemeSet> = blocklist.into();
         let pretokenized: Option<&Pretokenized> = pretokenized.into();
 
-        unsafe {
-            let text = CString::from_str(text).unwrap();
-            let blocklist = match blocklist {
-                Some(blocklist) => blocklist.handle,
-                None => std::ptr::null::<kiwi_morphset>() as *mut _,
-            };
-            let pretokenized = match pretokenized {
-                Some(pretokenized) => pretokenized.handle,
-                None => std::ptr::null::<kiwi_pretokenized>() as *mut _,
-            };
+        let text = CString::from_str(text).unwrap();
 
-            let res = kiwi_analyze(
-                self.handle,
+        let blocklist = blocklist.map(|x| x.handle.lock());
+        let blocklist = match blocklist.as_ref() {
+            Some(blocklist) => **blocklist,
+            None => std::ptr::null::<kiwi_morphset>() as *mut _,
+        };
+        let pretokenized = pretokenized.map(|x| x.handle.lock());
+        let pretokenized = match pretokenized.as_ref() {
+            Some(pretokenized) => **pretokenized,
+            None => std::ptr::null::<kiwi_pretokenized>() as *mut _,
+        };
+
+        let res = unsafe {
+            let handle = self.handle.read();
+            kiwi_analyze(
+                *handle,
                 text.as_ptr(),
                 top_n,
                 match_options.finish(),
                 blocklist,
                 pretokenized,
-            );
+            )
+        };
 
-            if res.is_null() {
-                let err = kiwi_error().unwrap_or_default();
-                return Err(Error::Native(err));
-            }
-
-            Ok(Analyzed::new(res))
+        if res.is_null() {
+            let err = kiwi_error().unwrap_or_default();
+            return Err(Error::Native(err));
         }
+
+        Ok(Analyzed::new(res))
     }
 
     /// 텍스트를 분석해 형태소 결과를 반환합니다.
@@ -190,43 +228,56 @@ impl Kiwi {
         let blocklist: Option<&MorphemeSet> = blocklist.into();
         let pretokenized: Option<&Pretokenized> = pretokenized.into();
 
-        unsafe {
-            let text = U16CString::from_ustr(text).unwrap();
-            let blocklist = match blocklist {
-                Some(blocklist) => blocklist.handle,
-                None => std::ptr::null::<kiwi_morphset>() as *mut _,
-            };
-            let pretokenized = match pretokenized {
-                Some(pretokenized) => pretokenized.handle,
-                None => std::ptr::null::<kiwi_pretokenized>() as *mut _,
-            };
+        let text = U16CString::from_ustr(text).unwrap();
 
-            let res = kiwi_analyze_w(
-                self.handle,
+        let blocklist = blocklist.map(|x| x.handle.lock());
+        let blocklist = match blocklist.as_ref() {
+            Some(blocklist) => **blocklist,
+            None => std::ptr::null::<kiwi_morphset>() as *mut _,
+        };
+        let pretokenized = pretokenized.map(|x| x.handle.lock());
+        let pretokenized = match pretokenized.as_ref() {
+            Some(pretokenized) => **pretokenized,
+            None => std::ptr::null::<kiwi_pretokenized>() as *mut _,
+        };
+
+        let res = unsafe {
+            let handle = self.handle.read();
+            kiwi_analyze_w(
+                *handle,
                 text.as_ptr(),
                 top_n,
                 match_options.finish(),
                 blocklist,
                 pretokenized,
-            );
+            )
+        };
 
-            if res.is_null() {
-                let err = kiwi_error().unwrap_or_default();
-                return Err(Error::Native(err));
-            }
-
-            Ok(Analyzed::new(res))
+        if res.is_null() {
+            let err = kiwi_error().unwrap_or_default();
+            return Err(Error::Native(err));
         }
+
+        Ok(Analyzed::new(res))
     }
 }
 
 impl Drop for Kiwi {
     fn drop(&mut self) {
-        let res = unsafe { kiwi_close(self.handle) };
+        if KiwiRc::strong_count(&self.handle) > 1 {
+            return;
+        }
+
+        let res = unsafe {
+            let handle = self.handle.read();
+            kiwi_close(*handle)
+        };
 
         if res != 0 {
             let err = kiwi_error().unwrap_or_default();
             panic!("Kiwi close error: {}", err);
         }
+
+        tracing::trace!("closed `Kiwi`");
     }
 }

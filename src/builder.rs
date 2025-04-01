@@ -5,16 +5,17 @@ use std::{
 };
 
 use either::Either;
+use parking_lot::{Mutex, RwLock};
 use widestring::U16String;
 
 use crate::{
     bindings::*,
     kiwi_error,
     trampoline::{reader_trampoline, reader_w_trampoline, replacer_trampoline},
-    typo, Error, Extracted, Kiwi, POSTag, Result,
+    typo, Error, Extracted, Kiwi, KiwiRc, POSTag, Result,
 };
 
-/// [Kiwi] 인스턴스를 생성할 때 사용하는 옵션 구조체
+/// [Kiwi] 구조체를 생성할 때 사용하는 옵션 구조체
 ///
 /// 옵션에 대한 설명은 각 메서드의 설명 참고
 ///
@@ -118,11 +119,11 @@ impl Default for KiwiOptions {
 }
 
 pub struct KiwiBuilder {
-    handle: kiwi_builder_h,
-    typo: Option<typo::sealed::TypoTransformer>,
-    /// default: 2.5
-    typo_cost_threshold: f32,
+    handle: KiwiRc<Mutex<kiwi_builder_h>>,
 }
+
+#[cfg(feature = "impl_send")]
+unsafe impl Send for KiwiBuilder {}
 
 impl KiwiBuilder {
     /// 기본 모델을 사용하여 [KiwiBuilder]를 생성합니다.
@@ -158,9 +159,8 @@ impl KiwiBuilder {
         }
 
         Ok(Self {
-            handle,
-            typo: None,
-            typo_cost_threshold: 2.5,
+            #[allow(clippy::arc_with_non_send_sync)]
+            handle: KiwiRc::new(Mutex::new(handle)),
         })
     }
 
@@ -202,9 +202,8 @@ impl KiwiBuilder {
         }
 
         Ok(Self {
-            handle,
-            typo: None,
-            typo_cost_threshold: 2.5,
+            #[allow(clippy::arc_with_non_send_sync)]
+            handle: KiwiRc::new(Mutex::new(handle)),
         })
     }
 
@@ -220,11 +219,12 @@ impl KiwiBuilder {
     /// * `pos` - 품사 태그 ([POSTag])
     /// * `score` - 점수
     pub fn add_word(self, word: &str, pos_tag: POSTag, score: f32) -> Result<Self> {
-        let res = unsafe {
-            let word = CString::from_str(word).unwrap();
-            let pos_tag = CString::from_str(pos_tag.as_str()).unwrap();
+        let word = CString::from_str(word).unwrap();
+        let pos_tag = CString::from_str(pos_tag.as_str()).unwrap();
 
-            kiwi_builder_add_word(self.handle, word.as_ptr(), pos_tag.as_ptr(), score)
+        let res = unsafe {
+            let handle = self.handle.lock();
+            kiwi_builder_add_word(*handle, word.as_ptr(), pos_tag.as_ptr(), score)
         };
 
         if res != 0 {
@@ -258,13 +258,14 @@ impl KiwiBuilder {
         score: f32,
         origin_word: &str,
     ) -> Result<Self> {
-        let res = unsafe {
-            let alias = CString::from_str(alias).unwrap();
-            let pos_tag = CString::from_str(pos_tag.as_str()).unwrap();
-            let origin_word = CString::from_str(origin_word).unwrap();
+        let alias = CString::from_str(alias).unwrap();
+        let pos_tag = CString::from_str(pos_tag.as_str()).unwrap();
+        let origin_word = CString::from_str(origin_word).unwrap();
 
+        let res = unsafe {
+            let handle = self.handle.lock();
             kiwi_builder_add_alias_word(
-                self.handle,
+                *handle,
                 alias.as_ptr(),
                 pos_tag.as_ptr(),
                 score,
@@ -372,8 +373,9 @@ impl KiwiBuilder {
             .collect::<Vec<_>>();
 
         let res = unsafe {
+            let handle = self.handle.lock();
             kiwi_builder_add_pre_analyzed_word(
-                self.handle,
+                *handle,
                 form.as_ptr(),
                 analyzed_morphs.len() as i32,
                 analyzed_morphs.as_mut_ptr(),
@@ -423,9 +425,9 @@ impl KiwiBuilder {
 
         let res = unsafe {
             // println!("replacer {:?}", replacer);
-
+            let handle = self.handle.lock();
             let r = kiwi_builder_add_rule(
-                self.handle,
+                *handle,
                 pos_tag.as_ptr(),
                 Some(replacer_trampoline::<F>),
                 replacer as *mut c_void,
@@ -448,7 +450,10 @@ impl KiwiBuilder {
     pub fn load_dict(self, dict_path: &str) -> Result<Self> {
         let dict_path = CString::from_str(dict_path).unwrap();
 
-        let res = unsafe { kiwi_builder_load_dict(self.handle, dict_path.as_ptr()) };
+        let res = unsafe {
+            let handle = self.handle.lock();
+            kiwi_builder_load_dict(*handle, dict_path.as_ptr())
+        };
 
         if res != 0 {
             let err = kiwi_error().unwrap_or_default();
@@ -471,9 +476,10 @@ impl KiwiBuilder {
     {
         let reader = Box::into_raw(Box::new(Box::new(reader)));
 
-        unsafe {
+        let ws = unsafe {
+            let handle = self.handle.lock();
             let ws = kiwi_builder_extract_words(
-                self.handle,
+                *handle,
                 Some(reader_trampoline::<F>),
                 reader as *mut c_void,
                 min_cnt,
@@ -484,13 +490,15 @@ impl KiwiBuilder {
 
             drop(Box::from_raw(reader));
 
-            if ws.is_null() {
-                let err = kiwi_error().unwrap_or_default();
-                return Err(Error::Native(err));
-            }
+            ws
+        };
 
-            Ok(Extracted::new(ws))
+        if ws.is_null() {
+            let err = kiwi_error().unwrap_or_default();
+            return Err(Error::Native(err));
         }
+
+        Ok(Extracted::new(ws))
     }
 
     pub fn extract_add_words<F>(
@@ -506,9 +514,10 @@ impl KiwiBuilder {
     {
         let reader = Box::into_raw(Box::new(Box::new(reader)));
 
-        unsafe {
+        let ws = unsafe {
+            let handle = self.handle.lock();
             let ws = kiwi_builder_extract_add_words(
-                self.handle,
+                *handle,
                 Some(reader_trampoline::<F>),
                 reader as *mut c_void,
                 min_cnt,
@@ -519,13 +528,15 @@ impl KiwiBuilder {
 
             drop(Box::from_raw(reader));
 
-            if ws.is_null() {
-                let err = kiwi_error().unwrap_or_default();
-                return Err(Error::Native(err));
-            }
+            ws
+        };
 
-            Ok(Extracted::new(ws))
+        if ws.is_null() {
+            let err = kiwi_error().unwrap_or_default();
+            return Err(Error::Native(err));
         }
+
+        Ok(Extracted::new(ws))
     }
 
     pub fn extract_words_w<F>(
@@ -541,9 +552,10 @@ impl KiwiBuilder {
     {
         let reader_w = Box::into_raw(Box::new(Box::new(reader_w)));
 
-        unsafe {
+        let ws = unsafe {
+            let handle = self.handle.lock();
             let ws = kiwi_builder_extract_words_w(
-                self.handle,
+                *handle,
                 Some(reader_w_trampoline::<F>),
                 reader_w as *mut c_void,
                 min_cnt,
@@ -554,13 +566,15 @@ impl KiwiBuilder {
 
             drop(Box::from_raw(reader_w));
 
-            if ws.is_null() {
-                let err = kiwi_error().unwrap_or_default();
-                return Err(Error::Native(err));
-            }
+            ws
+        };
 
-            Ok(Extracted::new(ws))
+        if ws.is_null() {
+            let err = kiwi_error().unwrap_or_default();
+            return Err(Error::Native(err));
         }
+
+        Ok(Extracted::new(ws))
     }
 
     pub fn extract_add_words_w<F>(
@@ -576,9 +590,10 @@ impl KiwiBuilder {
     {
         let reader_w = Box::into_raw(Box::new(Box::new(reader_w)));
 
-        unsafe {
+        let ws = unsafe {
+            let handle = self.handle.lock();
             let ws = kiwi_builder_extract_add_words_w(
-                self.handle,
+                *handle,
                 Some(reader_w_trampoline::<F>),
                 reader_w as *mut c_void,
                 min_cnt,
@@ -589,33 +604,42 @@ impl KiwiBuilder {
 
             drop(Box::from_raw(reader_w));
 
-            if ws.is_null() {
-                let err = kiwi_error().unwrap_or_default();
-                return Err(Error::Native(err));
-            }
+            ws
+        };
 
-            Ok(Extracted::new(ws))
+        if ws.is_null() {
+            let err = kiwi_error().unwrap_or_default();
+            return Err(Error::Native(err));
         }
+
+        Ok(Extracted::new(ws))
     }
 
-    #[allow(private_bounds)]
-    pub fn typo(
-        mut self,
-        typo: impl Into<typo::sealed::TypoTransformer>,
+    /// [Kiwi] 구조체를 생성합니다.
+    ///
+    /// # Parameters
+    ///
+    /// * `typo` - [DefaultTypoTransformer](crate::typo::DefaultTypoTransformer) 또는 [TypoTransformer](crate::typo::TypoTransformer).
+    ///            `&typo`처럼 borrowed 값을 줘도 되고,
+    ///            `typo`처럼 owned 값을 줘도 됩니다.
+    /// * `typo_cost_threshold` - 값을 넘어가는 비용이 드는 오타는 교정하지 않습니다.
+    pub fn build<'typo>(
+        &self,
+        typo: impl Into<Option<typo::sealed::TypoTransformer<'typo>>>,
         typo_cost_threshold: impl Into<Option<f32>>,
-    ) -> Self {
-        self.typo_cost_threshold = (typo_cost_threshold.into() as Option<f32>).unwrap_or(2.5);
-        self.typo.replace(typo.into());
-        self
-    }
+    ) -> Result<Kiwi> {
+        let typo: Option<typo::sealed::TypoTransformer> = typo.into();
+        let typo_cost_threshold: Option<f32> = typo_cost_threshold.into();
 
-    pub fn build(mut self) -> Result<Kiwi> {
         let kiwi = unsafe {
-            match self.typo.take() {
+            let handle = self.handle.lock();
+            match typo {
                 Some(typo) => {
-                    kiwi_builder_build(self.handle, typo.get_handle(), self.typo_cost_threshold)
+                    let (t1, t2) = typo.get_handle();
+                    let typo_handle = t1.or(t2.as_ref().map(|x| **x)).unwrap();
+                    kiwi_builder_build(*handle, typo_handle, typo_cost_threshold.unwrap_or(2.5))
                 }
-                None => kiwi_builder_build(self.handle, std::ptr::null_mut(), 0.0),
+                None => kiwi_builder_build(*handle, std::ptr::null_mut(), 0.0),
             }
         };
 
@@ -624,17 +648,29 @@ impl KiwiBuilder {
             return Err(Error::Native(err));
         }
 
-        Ok(Kiwi { handle: kiwi })
+        Ok(Kiwi {
+            #[allow(clippy::arc_with_non_send_sync)]
+            handle: KiwiRc::new(RwLock::new(kiwi)),
+        })
     }
 }
 
 impl Drop for KiwiBuilder {
     fn drop(&mut self) {
-        let res = unsafe { kiwi_builder_close(self.handle) };
+        if KiwiRc::strong_count(&self.handle) > 1 {
+            return;
+        }
+
+        let res = unsafe {
+            let handle = self.handle.lock();
+            kiwi_builder_close(*handle)
+        };
 
         if res != 0 {
             let err = kiwi_error().unwrap_or_default();
             panic!("KiwiBuilder close error: {}", err);
         }
+
+        tracing::trace!("closed `KiwiBuilder`");
     }
 }

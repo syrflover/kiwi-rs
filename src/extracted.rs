@@ -2,7 +2,7 @@ use std::{ffi::CStr, fmt::Debug};
 
 use widestring::{U16CStr, U16String};
 
-use crate::{bindings::*, kiwi_error};
+use crate::{bindings::*, kiwi_error, KiwiRc};
 
 #[derive(Debug, Clone)]
 pub struct Word<S>
@@ -15,10 +15,15 @@ where
     pub freq: usize,
 }
 
+#[derive(Clone)]
 pub struct Extracted {
-    pub(crate) handle: kiwi_ws_h,
+    pub(crate) handle: KiwiRc<kiwi_ws_h>,
     size: usize,
 }
+
+#[cfg(feature = "impl_send")]
+unsafe impl Send for Extracted {}
+// unsafe impl Sync for Extracted {}
 
 #[inline]
 fn size(handle: kiwi_ws_h) -> usize {
@@ -27,7 +32,7 @@ fn size(handle: kiwi_ws_h) -> usize {
 
         if size < 0 {
             let err = kiwi_error();
-            panic!("word_segments.size() -> {:?}", err);
+            panic!("extracted.size() -> {:?}", err);
         }
 
         size as usize
@@ -38,7 +43,11 @@ impl Extracted {
     pub(crate) fn new(handle: kiwi_ws_h) -> Self {
         let size = size(handle);
 
-        Self { handle, size }
+        Self {
+            #[allow(clippy::arc_with_non_send_sync)]
+            handle: KiwiRc::new(handle),
+            size,
+        }
     }
 
     #[inline]
@@ -59,11 +68,11 @@ impl Extracted {
     #[inline]
     fn form_unchecked(&self, index: usize) -> String {
         unsafe {
-            let form = kiwi_ws_form(self.handle, index as i32);
+            let form = kiwi_ws_form(*self.handle, index as i32);
 
             if form.is_null() {
                 let err = kiwi_error();
-                panic!("word_segments.form({}) -> {:?}", index, err);
+                panic!("extracted.form({}) -> {:?}", index, err);
             }
 
             let form = CStr::from_ptr(form);
@@ -80,11 +89,11 @@ impl Extracted {
     #[inline]
     fn form_w_unchecked(&self, index: usize) -> U16String {
         unsafe {
-            let form_w = kiwi_ws_form_w(self.handle, index as i32);
+            let form_w = kiwi_ws_form_w(*self.handle, index as i32);
 
             if form_w.is_null() {
                 let err = kiwi_error();
-                panic!("word_segments.form_w({}) -> {:?}", index, err);
+                panic!("extracted.form_w({}) -> {:?}", index, err);
             }
 
             let form_w = U16CStr::from_ptr_str(form_w);
@@ -101,11 +110,11 @@ impl Extracted {
     #[inline]
     fn score_unchecked(&self, index: usize) -> f32 {
         unsafe {
-            let score = kiwi_ws_score(self.handle, index as i32);
+            let score = kiwi_ws_score(*self.handle, index as i32);
 
             if score == 0.0 {
                 let err = kiwi_error();
-                panic!("word_segments.score({}) -> {:?}", index, err);
+                panic!("extracted.score({}) -> {:?}", index, err);
             }
 
             score
@@ -120,11 +129,11 @@ impl Extracted {
     #[inline]
     fn freq_unchecked(&self, index: usize) -> usize {
         unsafe {
-            let freq = kiwi_ws_freq(self.handle, index as i32);
+            let freq = kiwi_ws_freq(*self.handle, index as i32);
 
             if freq < 0 {
                 let err = kiwi_error();
-                panic!("word_segments.freq({}) -> {:?}", index, err);
+                panic!("extracted.freq({}) -> {:?}", index, err);
             }
 
             freq as usize
@@ -139,11 +148,11 @@ impl Extracted {
     #[inline]
     fn pos_score_unchecked(&self, index: usize) -> f32 {
         unsafe {
-            let pos_score = kiwi_ws_pos_score(self.handle, index as i32);
+            let pos_score = kiwi_ws_pos_score(*self.handle, index as i32);
 
             if pos_score == 0.0 {
                 let err = kiwi_error();
-                panic!("word_segments.pos_score({}) -> {:?}", index, err);
+                panic!("extracted.pos_score({}) -> {:?}", index, err);
             }
 
             pos_score
@@ -207,14 +216,20 @@ impl Extracted {
 
 impl Drop for Extracted {
     fn drop(&mut self) {
-        let res = unsafe { kiwi_ws_close(self.handle) };
+        if KiwiRc::strong_count(&self.handle) > 1 {
+            return;
+        }
+
+        let res = unsafe { kiwi_ws_close(*self.handle) };
 
         if res != 0 {
             panic!(
-                "WordSegments close error: {}",
+                "Extracted close error: {}",
                 kiwi_error().unwrap_or_default()
             );
         }
+
+        tracing::trace!("closed `Extracted`");
     }
 }
 
@@ -230,14 +245,14 @@ macro_rules! impl_iterator {
     )*) => {
         $(
             pub struct $struct_name<'a> {
-                word_segments: &'a Extracted,
+                extracted: &'a Extracted,
                 i: usize,
             }
 
             impl<'a> $struct_name<'a> {
-                pub(crate) fn new(word_segments: &'a Extracted) -> Self {
+                pub(crate) fn new(extracted: &'a Extracted) -> Self {
                     Self {
-                        word_segments,
+                        extracted,
                         i: 0,
                     }
                 }
@@ -247,12 +262,12 @@ macro_rules! impl_iterator {
                 type Item = $item_ty;
 
                 fn next(&mut self) -> Option<Self::Item> {
-                    self.word_segments.check_index(self.i)?;
+                    self.extracted.check_index(self.i)?;
 
-                    let form = self.word_segments.$form_fn(self.i);
-                    let freq = self.word_segments.freq_unchecked(self.i);
-                    let score = self.word_segments.score_unchecked(self.i);
-                    let pos_score = self.word_segments.pos_score_unchecked(self.i);
+                    let form = self.extracted.$form_fn(self.i);
+                    let freq = self.extracted.freq_unchecked(self.i);
+                    let score = self.extracted.score_unchecked(self.i);
+                    let pos_score = self.extracted.pos_score_unchecked(self.i);
 
                     self.i += 1;
 

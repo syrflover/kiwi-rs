@@ -1,23 +1,31 @@
 use std::{ffi::CString, str::FromStr};
 
+use parking_lot::Mutex;
 use widestring::{U16CString, U16Str};
 
-use crate::{bindings::*, kiwi_error, Error, POSTag, Result};
+use crate::{bindings::*, kiwi_error, Error, KiwiRc, POSTag, Result};
 
+#[derive(Clone)]
 pub struct Pretokenized {
-    pub(crate) handle: kiwi_pretokenized_h,
+    pub(crate) handle: KiwiRc<Mutex<kiwi_pretokenized_h>>,
 }
 
+#[cfg(feature = "impl_send")]
+unsafe impl Send for Pretokenized {}
+
 impl Pretokenized {
-    pub fn new() -> Result<Self> {
+    pub fn new() -> Self {
         let handle = unsafe { kiwi_pt_init() };
 
-        if handle.is_null() {
-            let err = kiwi_error().unwrap_or_default();
-            return Err(Error::Native(err));
-        }
+        // if handle.is_null() {
+        //     let err = kiwi_error().unwrap_or_default();
+        //     return Err(Error::Native(err));
+        // }
 
-        Ok(Self { handle })
+        Self {
+            #[allow(clippy::arc_with_non_send_sync)]
+            handle: KiwiRc::new(Mutex::new(handle)),
+        }
     }
 
     /// 새 구간을 추가합니다.
@@ -35,7 +43,10 @@ impl Pretokenized {
     ///
     /// span id를 반환합니다.
     pub fn add_span(&self, begin: usize, end: usize) -> Result<u32> {
-        let span_id = unsafe { kiwi_pt_add_span(self.handle, begin as i32, end as i32) };
+        let span_id = unsafe {
+            let handle = self.handle.lock();
+            kiwi_pt_add_span(*handle, begin as i32, end as i32)
+        };
 
         if span_id < 0 {
             let err = kiwi_error().unwrap_or_default();
@@ -70,8 +81,9 @@ impl Pretokenized {
         let tag = CString::from_str(tag.as_str()).unwrap();
 
         let res = unsafe {
+            let handle = self.handle.lock();
             kiwi_pt_add_token_to_span(
-                self.handle,
+                *handle,
                 span_id as i32,
                 form.as_ptr(),
                 tag.as_ptr(),
@@ -113,8 +125,9 @@ impl Pretokenized {
         let tag = CString::from_str(tag.as_str()).unwrap();
 
         let res = unsafe {
+            let handle = self.handle.lock();
             kiwi_pt_add_token_to_span_w(
-                self.handle,
+                *handle,
                 span_id as i32,
                 form.as_ptr(),
                 tag.as_ptr(),
@@ -134,11 +147,20 @@ impl Pretokenized {
 
 impl Drop for Pretokenized {
     fn drop(&mut self) {
-        let res = unsafe { kiwi_pt_close(self.handle) };
+        if KiwiRc::strong_count(&self.handle) > 1 {
+            return;
+        }
+
+        let res = unsafe {
+            let handle = self.handle.lock();
+            kiwi_pt_close(*handle)
+        };
 
         if res != 0 {
             let err = kiwi_error();
             panic!("Pretokenized close error: {:?}", err);
         }
+
+        tracing::trace!("closed `Pretokenized`");
     }
 }

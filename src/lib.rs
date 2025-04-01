@@ -26,11 +26,16 @@ pub use morpheme_set::*;
 pub use pos_tag::*;
 pub use pretokenized::*;
 pub use r#match::*;
-pub use typo::{DefaultTypoTransferOptions, DefaultTypoTransformer, TypoTransformer};
+pub use typo::{DefaultTypoSet, DefaultTypoTransformer, TypoTransformer};
 
 use std::ffi::CStr;
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+#[cfg(feature = "impl_send")]
+type KiwiRc<T> = std::sync::Arc<T>;
+#[cfg(not(feature = "impl_send"))]
+type KiwiRc<T> = std::rc::Rc<T>;
 
 pub fn kiwi_version() -> String {
     let cstr = unsafe { CStr::from_ptr(bindings::kiwi_version()) };

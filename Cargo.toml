@@ -15,14 +15,19 @@ readme = "readme.md"
 [features]
 static = []
 static_prebuilt = []
+impl_send = []
 
 [dependencies]
 either = "1.15"
+parking_lot = "0.12"
 thiserror = "2.0"
+tracing = "0.1"
 widestring = "1.2"
 
 [dev-dependencies]
 anyhow = "1.0"
+tokio = { version = "1.44", features = ["macros", "rt-multi-thread"] }
+tracing-subscriber = "0.3"
 
 [build-dependencies]
 bindgen = "0.71"
