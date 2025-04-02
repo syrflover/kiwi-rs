@@ -7,15 +7,15 @@ use crate::{bindings::*, kiwi_error, KiwiRc, POSTag};
 #[derive(Debug, Clone, Copy)]
 pub struct Token {
     /// 시작 위치 (UTF16 문자 기준)
-    pub chr_position: u32,
+    pub chr_position: usize,
     /// 어절 번호 (공백 기준)
-    pub word_position: u32,
+    pub word_position: usize,
     /// 문장 번호
-    pub sent_position: u32,
+    pub sent_position: usize,
     /// 줄 번호
-    pub line_number: u32,
+    pub line_number: usize,
     /// 길이 (UTF16 문자 기준)
-    pub length: u16,
+    pub length: usize,
     /// 품사 태그
     pub tag: POSTag,
     /// 해당 형태소의 언어모델 점수
@@ -29,7 +29,7 @@ pub struct Token {
     /// SSO, SSC 태그에 속하는 형태소의 경우 쌍을 이루는 반대쪽 형태소의 위치 (-1인 경우 해당하는 형태소가 없다는 것)
     pub paired_token: u32,
     /// 인용 부호나 괄호로 둘러싸인 하위 문장의 번호. 1부터 시작. 0인 경우 하위 문장이 아님
-    pub sub_sent_position: u32,
+    pub sub_sent_position: usize,
 
     /// 의미 번호
     pub sense_id: u8,
@@ -169,11 +169,11 @@ impl Analyzed {
             } = *token as kiwi_token_info_t;
 
             Token {
-                chr_position,
-                word_position,
-                sent_position,
-                line_number,
-                length,
+                chr_position: chr_position as usize,
+                word_position: word_position as usize,
+                sent_position: sent_position as usize,
+                line_number: line_number as usize,
+                length: length as usize,
                 tag: POSTag(tag),
                 sense_id: u.sense_id,
                 script: u.script,
@@ -181,7 +181,7 @@ impl Analyzed {
                 typo_cost,
                 typo_form_id,
                 paired_token,
-                sub_sent_position,
+                sub_sent_position: sub_sent_position as usize,
             }
         }
     }
